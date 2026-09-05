@@ -7,6 +7,7 @@ module.exports = {
       { test: /\.tsx?$/, exclude: /node_modules/, use: [{ loader: 'ts-loader' }] },
       { test: /\.css$/, use: [MiniCssExtractPlugin.loader, 'css-loader'] },
       { test: /\.png$/i, type: 'asset/resource' },
+      { test: /\.wav$/i, type: 'asset/resource' },
     ],
   },
   plugins: [new MiniCssExtractPlugin({ filename: '[name].css' })],

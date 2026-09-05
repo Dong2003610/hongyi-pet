@@ -56,6 +56,11 @@ function playSquash(): void {
   sprite.classList.add('squash');
 }
 
+// squash 播放完毕必须移除类，否则 .squash 的 animation 会永久覆盖呼吸动画
+sprite.addEventListener('animationend', (event) => {
+  if (event.animationName === 'squash') sprite.classList.remove('squash');
+});
+
 // 显示反馈气泡
 function showFeedback(text: string): void {
   feedbackBubble.textContent = text;
@@ -212,8 +217,26 @@ function playBeep(kind: string): void {
   osc.onended = () => void ctx.close();
 }
 
+const soundMap = new Map<string, string>();
+try {
+  const soundContext = require.context('../../assets/sounds', true, /\.wav$/i);
+  for (const key of soundContext.keys()) {
+    soundMap.set(key.replace(/^\.\//, '').replace(/\.wav$/i, ''), soundContext(key));
+  }
+} catch { /* 音效文件缺失时回退到蜂鸣声 */ }
+
+function playSoundEffect(kind: string): void {
+  const url = soundMap.get(kind);
+  if (!url) { playBeep(kind); return; }
+  try {
+    const audio = new Audio(url);
+    audio.volume = 0.7;
+    void audio.play().catch(() => playBeep(kind));
+  } catch { playBeep(kind); }
+}
+
 window.petAPI?.events.onPlaySound((kind: string) => {
-  playBeep(kind);
+  playSoundEffect(kind);
 });
 
 container.addEventListener('contextmenu', (e) => {

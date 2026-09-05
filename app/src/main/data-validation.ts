@@ -30,9 +30,18 @@ function optionalBool(obj: Record<string, unknown>, key: string, fallback: boole
   return obj[key] as boolean;
 }
 
+function optionalInt(obj: Record<string, unknown>, key: string, min: number, max: number): number | undefined {
+  if (obj[key] === undefined) return undefined;
+  const value = obj[key];
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+    throw new TypeError(`Invalid settings field: ${key}`);
+  }
+  return value;
+}
+
 export function parseSettings(value: unknown): Settings {
   const obj = record(value, 'settings');
-  const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'displayName', 'openAtLogin', 'soundEnabled', 'sedentaryReminder']);
+  const expected = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'petScale', 'displayName', 'openAtLogin', 'soundEnabled', 'sedentaryReminder', 'pomodoroWorkMin', 'pomodoroBreakMin']);
   for (const key of Object.keys(obj)) if (!expected.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
   for (const key of ['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough'] as const) {
     if (typeof obj[key] !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
@@ -54,6 +63,10 @@ export function parseSettings(value: unknown): Settings {
     sedentaryReminder: optionalBool(obj, 'sedentaryReminder', true),
   };
   if (displayName !== undefined) result.displayName = displayName;
+  const pomodoroWorkMin = optionalInt(obj, 'pomodoroWorkMin', 5, 180);
+  if (pomodoroWorkMin !== undefined) result.pomodoroWorkMin = pomodoroWorkMin;
+  const pomodoroBreakMin = optionalInt(obj, 'pomodoroBreakMin', 1, 60);
+  if (pomodoroBreakMin !== undefined) result.pomodoroBreakMin = pomodoroBreakMin;
   return result;
 }
 

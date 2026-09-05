@@ -11,6 +11,7 @@ import { atomicWriteJson, uniqueDestination } from './main/persistence';
 import { TypingListener } from './main/typing-listener';
 import { localDateKey, nextReminderDelay, nextRepeatDueAt, parsePersistedStats, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
 import { replyToChat } from './main/chat-replies';
+import { chatWithAi, loadAiConfig, type AiChatMessage, type AiConfig } from './main/ai-chat';
 import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
 
@@ -30,6 +31,8 @@ let isQuitting = false;
 let dragSession: { bounds: Rect; cursor: Point } | undefined;
 let resizeSession: { bounds: Rect; cursor: Point } | undefined;
 let runtimeRendererReport: RuntimeReadyReport | undefined;
+let aiConfig: AiConfig | undefined;
+let chatHistory: AiChatMessage[] = [];
 const runtimeReadyRenderers = new Set<Role>();
 let runtimeWindowReady = false;
 let runtimeCommitted = false;
@@ -68,6 +71,8 @@ const defaultSettings: Settings = {
   openAtLogin: false,
   soundEnabled: true,
   sedentaryReminder: true,
+  pomodoroWorkMin: 25,
+  pomodoroBreakMin: 5,
 };
 
 const defaultStats: PersistedStats = {
@@ -343,7 +348,8 @@ function stopPomodoro(): void {
 function startPomodoroPhase(phase: 'work' | 'break'): void {
   if (pomodoroTimer) clearTimeout(pomodoroTimer);
   pomodoroPhase = phase;
-  const duration = phase === 'work' ? 25 * 60_000 : 5 * 60_000;
+  const minutes = phase === 'work' ? settings.pomodoroWorkMin ?? 25 : settings.pomodoroBreakMin ?? 5;
+  const duration = minutes * 60_000;
   pomodoroEndsAt = Date.now() + duration;
   broadcastPomodoro();
   pomodoroTimer = setTimeout(() => {
@@ -533,6 +539,31 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   else playSound('notify');
   broadcastStats();
   return result;
+}
+
+async function chatReply(text: string): Promise<string> {
+  const fallback = replyToChat(text, { name: effectiveDisplayName(), mood: stats.mood, affection: stats.affection });
+  if (!aiConfig) return fallback;
+  const systemPrompt = [
+    `你是桌面宠物"${effectiveDisplayName()}"，一个住在用户电脑上的可爱小伙伴。`,
+    `性格：${spec.character.personality.join('、')}。`,
+    `当前状态：好感度 ${stats.affection}/300，心情 ${stats.mood}/100。`,
+    '用中文回答，语气口语化、可爱、简短（尽量不超过40个字），不要使用 markdown 格式。',
+  ].join('\n');
+  const messages: AiChatMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...chatHistory.slice(-10),
+    { role: 'user', content: text },
+  ];
+  try {
+    const reply = await chatWithAi(aiConfig, messages);
+    chatHistory.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+    return reply;
+  } catch (error) {
+    void logger?.write('warn', 'ai-chat-failed', { message: error instanceof Error ? error.message : String(error) });
+    return fallback;
+  }
 }
 
 function showReminderComposer(): void {
@@ -801,7 +832,7 @@ function registerIpc(): void {
     notifyRemindersUpdated();
     return reminder;
   });
-  ipcMain.handle('chat:send', (event, text: unknown) => {
+  ipcMain.handle('chat:send', async (event, text: unknown) => {
     assertSender(event, ['dashboard']);
     if (typeof text !== 'string' || text.length > 500) throw new TypeError('Invalid chat text');
     markInteracted();
@@ -809,11 +840,12 @@ function registerIpc(): void {
     stats.mood = Math.min(100, stats.mood + 1);
     void persistStats();
     broadcastStats();
-    const reply = replyToChat(text, { name: effectiveDisplayName(), mood: stats.mood, affection: stats.affection });
+    const reply = await chatReply(text);
     playSound('notify');
     sendActivity({ kind: 'interaction', stateId: 'notify', durationMs: 1600, feedback: reply });
     return reply;
   });
+  ipcMain.handle('ai:status', (event) => { assertSender(event, ['dashboard']); return Boolean(aiConfig); });
   ipcMain.handle('pomodoro:start', (event) => {
     assertSender(event, ['dashboard']);
     startPomodoroPhase('work');
@@ -920,6 +952,7 @@ async function initialize(): Promise<void> {
   settings = await readValidatedJson(userFile('settings.json'), defaultSettings, parseSettings);
   reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
   stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
+  aiConfig = await loadAiConfig(app.getPath('userData'));
   lastInteractionAt = stats.lastInteractionAt ?? Date.now();
   normalizeStatsDay();
   sessionStartedAt = Date.now();
@@ -930,6 +963,15 @@ async function initialize(): Promise<void> {
   applyLoginItem();
   registerClickThroughHotkey();
   reminders.forEach(scheduleReminder);
+  powerMonitor.on('suspend', () => {
+    void persistStats().catch((error) => void logger?.write('warn', 'persist-stats-on-suspend-failed', { message: error instanceof Error ? error.message : String(error) }));
+  });
+  powerMonitor.on('resume', () => {
+    // 睡眠期间 setTimeout 被暂停：唤醒后重算全部提醒的调度，避免丢失或延迟爆发
+    sessionStartedAt = Date.now();
+    reminders.forEach(scheduleReminder);
+    void logger?.write('info', 'system-resumed', { rescheduledReminders: reminders.length });
+  });
   restartTypingListener();
   startActivityWatcher();
   startDecayLoop();

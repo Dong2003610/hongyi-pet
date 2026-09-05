@@ -119,6 +119,8 @@ export interface Settings {
   openAtLogin: boolean;
   soundEnabled: boolean;
   sedentaryReminder: boolean;
+  pomodoroWorkMin?: number;
+  pomodoroBreakMin?: number;
 }
 
 export type ReminderRepeat = 'none' | 'daily' | 'weekdays';
@@ -188,6 +190,9 @@ export interface PetAPI {
   };
   chat: {
     send: (text: string) => Promise<string>;
+  };
+  ai: {
+    status: () => Promise<boolean>;
   };
   pomodoro: {
     start: () => Promise<{ phase: string; endsAt: number }>;
@@ -263,7 +268,7 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
   }
   const obj = value as Record<string, unknown>;
   const booleanKeys = new Set(['edgeSnap', 'alwaysOnTop', 'typingReaction', 'clickThrough', 'openAtLogin', 'soundEnabled', 'sedentaryReminder']);
-  const allowedKeys = new Set([...booleanKeys, 'petScale', 'displayName']);
+  const allowedKeys = new Set([...booleanKeys, 'petScale', 'displayName', 'pomodoroWorkMin', 'pomodoroBreakMin']);
   for (const [key, item] of Object.entries(obj)) {
     if (!allowedKeys.has(key)) throw new TypeError(`Unknown settings field: ${key}`);
     if (booleanKeys.has(key) && typeof item !== 'boolean') throw new TypeError(`Invalid settings field: ${key}`);
@@ -272,6 +277,12 @@ export function assertSettingsPatch(value: unknown): asserts value is Partial<Se
     }
     if (key === 'displayName' && item !== undefined && (typeof item !== 'string' || item.length > 50)) {
       throw new TypeError('Invalid settings field: displayName');
+    }
+    if (key === 'pomodoroWorkMin' && item !== undefined && (typeof item !== 'number' || !Number.isInteger(item) || item < 5 || item > 180)) {
+      throw new TypeError('Invalid settings field: pomodoroWorkMin');
+    }
+    if (key === 'pomodoroBreakMin' && item !== undefined && (typeof item !== 'number' || !Number.isInteger(item) || item < 1 || item > 60)) {
+      throw new TypeError('Invalid settings field: pomodoroBreakMin');
     }
   }
 }

@@ -21,6 +21,9 @@ const api: PetAPI = {
   chat: {
     send: (text) => ipcRenderer.invoke('chat:send', text) as Promise<string>,
   },
+  ai: {
+    status: () => ipcRenderer.invoke('ai:status') as Promise<boolean>,
+  },
   pomodoro: {
     start: () => ipcRenderer.invoke('pomodoro:start') as Promise<{ phase: string; endsAt: number }>,
     stop: () => ipcRenderer.invoke('pomodoro:stop') as Promise<void>,

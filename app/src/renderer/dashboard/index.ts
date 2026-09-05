@@ -42,6 +42,9 @@ const pomodoroStatusEl = document.getElementById('pomodoro-status') as HTMLSpanE
 const pomodoroTimerEl = document.getElementById('pomodoro-timer') as HTMLSpanElement;
 const pomodoroStartBtn = document.getElementById('pomodoro-start-btn') as HTMLButtonElement;
 const pomodoroStopBtn = document.getElementById('pomodoro-stop-btn') as HTMLButtonElement;
+const pomodoroWorkInput = document.getElementById('pomodoro-work-min') as HTMLInputElement;
+const pomodoroBreakInput = document.getElementById('pomodoro-break-min') as HTMLInputElement;
+const aiHintEl = document.getElementById('ai-hint') as HTMLDivElement;
 const openPocketBtn = document.getElementById('open-pocket-btn') as HTMLButtonElement;
 
 let currentSettings: Settings | null = null;
@@ -183,6 +186,21 @@ pomodoroStopBtn.addEventListener('click', async () => {
 });
 window.petAPI?.events.onPomodoro((r) => updatePomodoroUI(r.phase, r.endsAt));
 
+async function savePomodoroConfig(): Promise<void> {
+  if (!currentSettings) return;
+  const work = Math.max(5, Math.min(180, Math.round(Number(pomodoroWorkInput.value) || 25)));
+  const rest = Math.max(1, Math.min(60, Math.round(Number(pomodoroBreakInput.value) || 5)));
+  pomodoroWorkInput.value = String(work);
+  pomodoroBreakInput.value = String(rest);
+  try {
+    await window.petAPI?.settings.update({ pomodoroWorkMin: work, pomodoroBreakMin: rest });
+    currentSettings.pomodoroWorkMin = work;
+    currentSettings.pomodoroBreakMin = rest;
+  } catch {}
+}
+pomodoroWorkInput.addEventListener('change', () => void savePomodoroConfig());
+pomodoroBreakInput.addEventListener('change', () => void savePomodoroConfig());
+
 // ── Reminders ──
 function setDefaultReminderTime(): void {
   const now = new Date();
@@ -263,6 +281,8 @@ async function loadSettings(): Promise<void> {
   setToggle(toggleOpenAtLogin, s.openAtLogin);
   setToggle(toggleSound, s.soundEnabled);
   setToggle(toggleSedentary, s.sedentaryReminder);
+  pomodoroWorkInput.value = String(s.pomodoroWorkMin ?? 25);
+  pomodoroBreakInput.value = String(s.pomodoroBreakMin ?? 5);
   const sizeBtns = sizeSelector.querySelectorAll('.size-btn');
   sizeBtns.forEach((btn) => {
     const scale = parseFloat((btn as HTMLElement).dataset.scale || '1');
@@ -330,6 +350,10 @@ async function init(): Promise<void> {
   await loadSettings();
   await loadStats();
   await loadReminders();
+  const aiEnabled = await window.petAPI?.ai.status();
+  aiHintEl.textContent = aiEnabled
+    ? '🤖 AI 聊天已启用'
+    : '🤖 未启用 AI：在 %APPDATA%\\小红桌宠\\ 放置 ai-config.json 后重启（参见项目 README）';
   if (pomodoroInterval) clearInterval(pomodoroInterval);
   pomodoroInterval = setInterval(tickPomodoro, 500);
   const ps = await window.petAPI?.pomodoro.status();
