@@ -1,0 +1,270 @@
+{
+  "reports": [
+    {
+      "ok": true,
+      "name": "idle-01.png",
+      "state": "idle"
+    },
+    {
+      "ok": true,
+      "name": "idle-02.png",
+      "state": "idle"
+    },
+    {
+      "ok": true,
+      "name": "idle-03.png",
+      "state": "idle"
+    },
+    {
+      "ok": true,
+      "name": "idle-04.png",
+      "state": "idle"
+    },
+    {
+      "ok": true,
+      "name": "blink-01.png",
+      "state": "blink"
+    },
+    {
+      "ok": true,
+      "name": "blink-02.png",
+      "state": "blink"
+    },
+    {
+      "ok": true,
+      "name": "blink-03.png",
+      "state": "blink"
+    },
+    {
+      "ok": true,
+      "name": "blink-04.png",
+      "state": "blink"
+    },
+    {
+      "ok": true,
+      "name": "blink-05.png",
+      "state": "blink"
+    },
+    {
+      "ok": true,
+      "name": "happy-01.png",
+      "state": "happy"
+    },
+    {
+      "ok": true,
+      "name": "happy-02.png",
+      "state": "happy"
+    },
+    {
+      "ok": true,
+      "name": "happy-03.png",
+      "state": "happy"
+    },
+    {
+      "ok": true,
+      "name": "happy-04.png",
+      "state": "happy"
+    },
+    {
+      "ok": true,
+      "name": "happy-05.png",
+      "state": "happy"
+    },
+    {
+      "ok": true,
+      "name": "notify-01.png",
+      "state": "notify"
+    },
+    {
+      "ok": true,
+      "name": "notify-02.png",
+      "state": "notify"
+    },
+    {
+      "ok": true,
+      "name": "notify-03.png",
+      "state": "notify"
+    },
+    {
+      "ok": true,
+      "name": "notify-04.png",
+      "state": "notify"
+    },
+    {
+      "ok": true,
+      "name": "notify-05.png",
+      "state": "notify"
+    },
+    {
+      "ok": true,
+      "name": "peek-01.png",
+      "state": "peek"
+    },
+    {
+      "ok": true,
+      "name": "peek-02.png",
+      "state": "peek"
+    },
+    {
+      "ok": true,
+      "name": "peek-03.png",
+      "state": "peek"
+    },
+    {
+      "ok": true,
+      "name": "peek-04.png",
+      "state": "peek"
+    },
+    {
+      "ok": true,
+      "name": "peek-05.png",
+      "state": "peek"
+    },
+    {
+      "ok": true,
+      "name": "pet-01.png",
+      "state": "pet"
+    },
+    {
+      "ok": true,
+      "name": "pet-02.png",
+      "state": "pet"
+    },
+    {
+      "ok": true,
+      "name": "pet-03.png",
+      "state": "pet"
+    },
+    {
+      "ok": true,
+      "name": "pet-04.png",
+      "state": "pet"
+    },
+    {
+      "ok": true,
+      "name": "pet-05.png",
+      "state": "pet"
+    },
+    {
+      "ok": true,
+      "name": "eat-01.png",
+      "state": "eat"
+    },
+    {
+      "ok": true,
+      "name": "eat-02.png",
+      "state": "eat"
+    },
+    {
+      "ok": true,
+      "name": "eat-03.png",
+      "state": "eat"
+    },
+    {
+      "ok": true,
+      "name": "eat-04.png",
+      "state": "eat"
+    },
+    {
+      "ok": true,
+      "name": "eat-05.png",
+      "state": "eat"
+    },
+    {
+      "ok": true,
+      "name": "walk-left-01.png",
+      "state": "walk-left"
+    },
+    {
+      "ok": true,
+      "name": "walk-left-02.png",
+      "state": "walk-left"
+    },
+    {
+      "ok": true,
+      "name": "walk-left-03.png",
+      "state": "walk-left"
+    },
+    {
+      "ok": true,
+      "name": "walk-left-04.png",
+      "state": "walk-left"
+    },
+    {
+      "ok": true,
+      "name": "walk-left-05.png",
+      "state": "walk-left"
+    },
+    {
+      "ok": true,
+      "name": "walk-left-06.png",
+      "state": "walk-left"
+    },
+    {
+      "ok": true,
+      "name": "walk-right-01.png",
+      "state": "walk-right"
+    },
+    {
+      "ok": true,
+      "name": "walk-right-02.png",
+      "state": "walk-right"
+    },
+    {
+      "ok": true,
+      "name": "walk-right-03.png",
+      "state": "walk-right"
+    },
+    {
+      "ok": true,
+      "name": "walk-right-04.png",
+      "state": "walk-right"
+    },
+    {
+      "ok": true,
+      "name": "walk-right-05.png",
+      "state": "walk-right"
+    },
+    {
+      "ok": true,
+      "name": "walk-right-06.png",
+      "state": "walk-right"
+    },
+    {
+      "ok": true,
+      "name": "sleep-01.png",
+      "state": "sleep"
+    },
+    {
+      "ok": true,
+      "name": "sleep-02.png",
+      "state": "sleep"
+    },
+    {
+      "ok": true,
+      "name": "sleep-03.png",
+      "state": "sleep"
+    },
+    {
+      "ok": true,
+      "name": "sleep-04.png",
+      "state": "sleep"
+    },
+    {
+      "ok": true,
+      "name": "sleep-05.png",
+      "state": "sleep"
+    },
+    {
+      "ok": true,
+      "name": "sleep-06.png",
+      "state": "sleep"
+    },
+    {
+      "ok": true,
+      "name": "core-ip/core-ip.png",
+      "state": "core-ip"
+    }
+  ],
+  "failures": []
+}
