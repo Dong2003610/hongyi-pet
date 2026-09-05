@@ -3,7 +3,7 @@ import { copyFile, lstat, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import specData from '../pet-spec.json';
-import type { ChatMessage, InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { ChatMessage, InteractionResult, PetSpec, PetStats, Reminder, ReminderRepeat, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray } from './shared/contracts';
 import { clampBounds, draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
 import { JsonLogger } from './main/logger';
@@ -14,6 +14,7 @@ import { replyToChat } from './main/chat-replies';
 import { chatWithAi, loadAiConfig, type AiChatMessage, type AiConfig } from './main/ai-chat';
 import { fetchWeatherText } from './main/weather';
 import { buildContextLines } from './main/context-skills';
+import { AI_ACTION_MARKER, aiReminderPromptLines, parseAiReminderAction, stripAiReminderAction } from './main/ai-actions';
 import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
 
@@ -297,6 +298,9 @@ function walkPet(direction: 1 | -1, durationMs: number): void {
   const stateId = direction < 0 ? 'walk-left' : 'walk-right';
   sendActivity({ kind: 'move', stateId, durationMs });
   const step = direction * 4;
+  // 锁定起始 y：Windows 缩放（125%/150%）下反复 getBounds/setBounds 有取整误差，
+  // 不锁定的话 y 会随着每一 tick 漂移，导致桌宠"走着走着往上跑"。
+  const startY = petWindow.getBounds().y;
   const started = Date.now();
   walkTick = setInterval(() => {
     if (!petWindow || petWindow.isDestroyed() || dragSession) {
@@ -305,7 +309,7 @@ function walkPet(direction: 1 | -1, durationMs: number): void {
     }
     const bounds = petWindow.getBounds();
     const area = petWorkArea();
-    const next = clampBounds({ ...bounds, x: bounds.x + step }, area);
+    const next = clampBounds({ ...bounds, x: bounds.x + step, y: startY }, area);
     petWindow.setBounds(next, false);
     if (next.x === bounds.x || Date.now() - started >= durationMs) stopWalk();
   }, 40);
@@ -321,7 +325,7 @@ function scheduleAutonomousWalk(): void {
       let dir: 1 | -1 = Math.random() < 0.5 ? -1 : 1;
       if (bounds.x <= area.x + 4) dir = 1;
       if (bounds.x + bounds.width >= area.x + area.width - 4) dir = -1;
-      walkPet(dir, 2800 + Math.floor(Math.random() * 1800));
+      walkPet(dir, 1200 + Math.floor(Math.random() * 1000));
     }
     scheduleAutonomousWalk();
   }, 18000 + Math.floor(Math.random() * 22000));
@@ -566,9 +570,24 @@ async function chatReply(text: string): Promise<string> {
     const weather = await fetchWeatherText(city);
     if (weather) promptLines.push(`实时天气：${weather}。用户问天气时以此为准。`);
     promptLines.push(...await buildContextLines(reminders));
+    if (spec.features.reminders) promptLines.push(...aiReminderPromptLines());
     const messages: AiChatMessage[] = [{ role: 'system', content: promptLines.join('\n') }, ...chatHistory.slice(-10)];
     try {
       reply = await chatWithAi(aiConfig, messages);
+      if (reply.includes(AI_ACTION_MARKER)) {
+        const action = parseAiReminderAction(reply);
+        reply = stripAiReminderAction(reply) || '好哒，已经帮你记下啦！';
+        if (action) {
+          try {
+            const reminder = await createReminder(action);
+            void logger?.write('info', 'ai-reminder-created', { text: reminder.text, dueAt: reminder.dueAt, repeat: reminder.repeat });
+          } catch (error) {
+            void logger?.write('warn', 'ai-reminder-invalid', { message: error instanceof Error ? error.message : String(error) });
+          }
+        } else {
+          void logger?.write('warn', 'ai-reminder-parse-failed', { reply: reply.slice(0, 200) });
+        }
+      }
     } catch (error) {
       void logger?.write('warn', 'ai-chat-failed', { message: error instanceof Error ? error.message : String(error) });
       reply = fallback;
@@ -730,6 +749,22 @@ async function persistReminders(): Promise<void> {
   await atomicWriteJson(userFile('reminders.json'), reminders);
 }
 
+async function createReminder(input: { text: string; dueAt: string; repeat?: ReminderRepeat }): Promise<Reminder> {
+  assertReminderInput(input);
+  const reminder: Reminder = {
+    id: randomUUID(),
+    text: input.text.trim(),
+    dueAt: new Date(input.dueAt).toISOString(),
+    createdAt: new Date().toISOString(),
+    repeat: input.repeat ?? 'none',
+  };
+  reminders.push(reminder);
+  await persistReminders();
+  scheduleReminder(reminder);
+  notifyRemindersUpdated();
+  return reminder;
+}
+
 async function openPocket(): Promise<void> {
   if (!spec.features.filePocket) throw new Error('File pocket is disabled');
   const directory = filePocket();
@@ -801,18 +836,7 @@ function registerIpc(): void {
   ipcMain.handle('reminders:save', async (event, input: unknown) => {
     assertSender(event, ['dashboard', 'reminder']);
     assertReminderInput(input);
-    const reminder: Reminder = {
-      id: randomUUID(),
-      text: input.text.trim(),
-      dueAt: new Date(input.dueAt).toISOString(),
-      createdAt: new Date().toISOString(),
-      repeat: input.repeat ?? 'none',
-    };
-    reminders.push(reminder);
-    await persistReminders();
-    scheduleReminder(reminder);
-    notifyRemindersUpdated();
-    return reminder;
+    return createReminder(input);
   });
   ipcMain.handle('reminders:remove', async (event, id: unknown) => {
     assertSender(event, ['dashboard', 'reminder']);

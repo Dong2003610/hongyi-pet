@@ -51,7 +51,7 @@ export async function chatWithAi(config: AiConfig, messages: AiChatMessage[]): P
         model: config.model,
         messages,
         temperature: 0.8,
-        max_tokens: 200,
+        max_tokens: 320,
       }),
       signal: controller.signal,
     });

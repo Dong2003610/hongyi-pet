@@ -35,7 +35,7 @@
                                "pet-spec.json":  "3c65170aad1dfccda519fccc8bc595ae89c9580369d7391ce1ee419822bafc08",
                                "package.json":  "285d34ef04a3346860935ad17b1e8fcc164546861c19486c579ced1ad549edb9",
                                "package-lock.json":  "9b74f84af9eea44b104b9fcbb7f23bd0ab3b9c04e24a871bfb5dbbcd9c435e2c",
-                               "src/main.ts":  "8db8c2fe7193b89e05ce7c22225c2eb8f2cbd97e043de3366dbf6c9e49428a52",
+                               "src/main.ts":  "ab85149001cece1ded75ce6abc303c11fcc5ec0a870a0c2536e29f94ff0b04ce",
                                "src/preload.ts":  "3152c0f59f92cbd21d38902f76197e850d2d83f8f0e2a6ac3d33bc5ea0d2dafa",
                                "src/shared/contracts.ts":  "e6c93638d94f7c3cdc944382c5e6315a46c20ea65537673450c8dfb876816bc1",
                                "src/main/data-validation.ts":  "db60ef287f0edaf478eedb9a7e2eb2974db9203ab357e7573ff7115e3202a4cd",
