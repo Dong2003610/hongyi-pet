@@ -343,8 +343,22 @@ document.addEventListener('mousedown', (e) => {
 document.addEventListener('mousemove', () => { if (dragging) window.petAPI?.window.updateDrag(); });
 document.addEventListener('mouseup', () => { if (dragging) { dragging = false; window.petAPI?.window.endDrag(); } });
 
+// ── Tabs ──
+const tabBtns = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+const tabPanels = document.querySelectorAll<HTMLDivElement>('.tab-panel');
+function activateTab(name: string): void {
+  tabBtns.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === name));
+  tabPanels.forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${name}`));
+  if (name === 'chat') chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+document.getElementById('tab-bar')?.addEventListener('click', (event) => {
+  const target = (event.target as HTMLElement).closest('.tab-btn') as HTMLElement | null;
+  if (target?.dataset.tab) activateTab(target.dataset.tab);
+});
+
 // ── Init ──
 async function init(): Promise<void> {
+  activateTab('chat');
   await loadDisplayName();
   await loadInteractions();
   await loadSettings();

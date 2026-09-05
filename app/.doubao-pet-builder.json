@@ -33,13 +33,13 @@
                                "forge.config.js":  "855b31f685975f1b5bca03c3f9eede85ad3e95e9fc0650a57a9d7ef080331c33",
                                "tsconfig.json":  "93b95b1945b98734d250ebc26275985de4ab7a598975938b6a4a08620137d50d",
                                "tools/process-simple.mjs":  "7a26e1f68bacf831795b07b4cb71e179fc5ae75d56d8a24ad3f263ba15d0d880",
-                               "src/renderer/dashboard/index.html":  "76eed8c7dfd1487532689cbcc540523d3a857de92bfe479c2c707a354f794645",
-                               "src/renderer/dashboard/index.ts":  "6e96b84be1973d0a3eb13d62ad3bffde154ac683a8b1b4d2a0f4eae488c0890e",
                                "src/renderer/reminder/index.html":  "faaf6fa2aaee05d81f5e75f19d4ed87bb1e9f9c3610d3cd048aef8a1bafb52f4",
                                "src/renderer/reminder/index.ts":  "93d221254e6701239e6d67f88834a7ac976461be964f43244cefdb1e8451c758",
                                "pet-spec.json":  "3c65170aad1dfccda519fccc8bc595ae89c9580369d7391ce1ee419822bafc08",
                                "src/main.ts":  "0ed2ccb570a85ab8a53663859a4f3e11614f9201b26bcdafd936ea10140bf85f",
                                "package.json":  "285d34ef04a3346860935ad17b1e8fcc164546861c19486c579ced1ad549edb9",
-                               "package-lock.json":  "fb1a030250313aa4f9cae9b43f0dd40442e3fa0a2e555af27b2ac10bd64a70ef"
+                               "package-lock.json":  "fb1a030250313aa4f9cae9b43f0dd40442e3fa0a2e555af27b2ac10bd64a70ef",
+                               "src/renderer/dashboard/index.html":  "7f0ad27ee44d15532c74a7210cc8198d021672012970fc8b086d05e7cdb96fad",
+                               "src/renderer/dashboard/index.ts":  "43ad23375f17e8f91dbfb9571795a7473a74575fbcae824e7e8f63194875ac56"
                            }
 }
