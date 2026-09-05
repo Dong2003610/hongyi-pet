@@ -133,6 +133,11 @@ export interface Reminder {
   repeat: ReminderRepeat;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface StateActivity {
   kind: string;
   stateId?: string;
@@ -190,6 +195,8 @@ export interface PetAPI {
   };
   chat: {
     send: (text: string) => Promise<string>;
+    history: () => Promise<ChatMessage[]>;
+    clear: () => Promise<void>;
   };
   ai: {
     status: () => Promise<boolean>;

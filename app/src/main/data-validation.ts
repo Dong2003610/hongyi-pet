@@ -1,4 +1,4 @@
-import type { Reminder, ReminderRepeat, Settings } from '../shared/contracts';
+import type { ChatMessage, Reminder, ReminderRepeat, Settings } from '../shared/contracts';
 
 export interface PersistedStats {
   affection: number;
@@ -107,6 +107,18 @@ export function parseReminders(value: unknown): Reminder[] {
     if (typeof obj.createdAt !== 'string' || !Number.isFinite(Date.parse(obj.createdAt))) throw new TypeError('Invalid reminder createdAt');
     const repeat = obj.repeat === 'daily' || obj.repeat === 'weekdays' || obj.repeat === 'none' ? obj.repeat : 'none';
     return { id: obj.id, text: obj.text, dueAt: obj.dueAt, createdAt: obj.createdAt, repeat };
+  });
+}
+
+export function parseChatHistory(value: unknown): ChatMessage[] {
+  if (!Array.isArray(value)) throw new TypeError('Invalid chat history');
+  return value.slice(-40).map((item) => {
+    const obj = record(item, 'chat message');
+    if (obj.role !== 'user' && obj.role !== 'assistant') throw new TypeError('Invalid chat message role');
+    if (typeof obj.content !== 'string' || obj.content.length < 1 || obj.content.length > 2000) {
+      throw new TypeError('Invalid chat message content');
+    }
+    return { role: obj.role, content: obj.content };
   });
 }
 

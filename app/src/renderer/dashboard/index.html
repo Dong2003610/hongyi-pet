@@ -45,7 +45,10 @@
     .chat-input:focus { border-color: var(--primary, #ff8a24); }
     .chat-send { padding: 10px 18px; border: none; border-radius: 10px; background: var(--primary, #E53935); color: white; font-size: 13px; cursor: pointer; }
     .chat-send:hover { opacity: 0.9; }
-    .ai-hint { font-size: 11px; color: var(--muted, #9a7b6a); padding: 6px 2px 0; }
+    .ai-hint-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 2px 0; }
+    .ai-hint { font-size: 11px; color: var(--muted, #9a7b6a); }
+    .chat-clear { border: none; background: transparent; color: var(--muted, #9a7b6a); font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+    .chat-clear:hover { color: var(--text, #3a2a20); background: var(--background, #fff7ed); }
     .interactions { display: flex; flex-wrap: wrap; gap: 8px; }
     .interaction-btn { padding: 10px 14px; border: none; border-radius: 12px; background: var(--background, #fff7ed); color: var(--text, #3a2a20); font-size: 13px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 5px; }
     .interaction-btn:hover { background: var(--accent, #ffc987); transform: translateY(-1px); }
@@ -133,7 +136,10 @@
               <input class="chat-input" id="chat-input" placeholder="说点什么…（Enter 发送）" maxlength="500">
               <button class="chat-send" id="chat-send">发送</button>
             </div>
-            <div class="ai-hint" id="ai-hint"></div>
+            <div class="ai-hint-row">
+              <span class="ai-hint" id="ai-hint"></span>
+              <button class="chat-clear" id="chat-clear" title="清空聊天记录（同时重置 AI 上下文）">🧹 清空对话</button>
+            </div>
           </div>
         </div>
 

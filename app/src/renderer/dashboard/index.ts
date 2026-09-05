@@ -44,7 +44,8 @@ const pomodoroStartBtn = document.getElementById('pomodoro-start-btn') as HTMLBu
 const pomodoroStopBtn = document.getElementById('pomodoro-stop-btn') as HTMLButtonElement;
 const pomodoroWorkInput = document.getElementById('pomodoro-work-min') as HTMLInputElement;
 const pomodoroBreakInput = document.getElementById('pomodoro-break-min') as HTMLInputElement;
-const aiHintEl = document.getElementById('ai-hint') as HTMLDivElement;
+const aiHintEl = document.getElementById('ai-hint') as HTMLSpanElement;
+const chatClearBtn = document.getElementById('chat-clear') as HTMLButtonElement;
 const openPocketBtn = document.getElementById('open-pocket-btn') as HTMLButtonElement;
 
 let currentSettings: Settings | null = null;
@@ -356,9 +357,20 @@ document.getElementById('tab-bar')?.addEventListener('click', (event) => {
   if (target?.dataset.tab) activateTab(target.dataset.tab);
 });
 
+async function loadChatHistory(): Promise<void> {
+  const history = await window.petAPI?.chat.history();
+  if (history) history.forEach((message) => appendChat(message.role === 'user' ? 'me' : 'pet', message.content));
+}
+
+chatClearBtn.addEventListener('click', async () => {
+  await window.petAPI?.chat.clear();
+  chatMessages.replaceChildren();
+});
+
 // ── Init ──
 async function init(): Promise<void> {
   activateTab('chat');
+  await loadChatHistory();
   await loadDisplayName();
   await loadInteractions();
   await loadSettings();

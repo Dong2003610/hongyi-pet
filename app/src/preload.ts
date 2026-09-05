@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { ChatMessage, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -20,6 +20,8 @@ const api: PetAPI = {
   },
   chat: {
     send: (text) => ipcRenderer.invoke('chat:send', text) as Promise<string>,
+    history: () => ipcRenderer.invoke('chat:history') as Promise<ChatMessage[]>,
+    clear: () => ipcRenderer.invoke('chat:clear') as Promise<void>,
   },
   ai: {
     status: () => ipcRenderer.invoke('ai:status') as Promise<boolean>,

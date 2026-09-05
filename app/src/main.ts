@@ -3,13 +3,13 @@ import { copyFile, lstat, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import specData from '../pet-spec.json';
-import type { InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { ChatMessage, InteractionResult, PetSpec, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray } from './shared/contracts';
 import { clampBounds, draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
 import { JsonLogger } from './main/logger';
 import { atomicWriteJson, uniqueDestination } from './main/persistence';
 import { TypingListener } from './main/typing-listener';
-import { localDateKey, nextReminderDelay, nextRepeatDueAt, parsePersistedStats, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
+import { localDateKey, nextReminderDelay, nextRepeatDueAt, parseChatHistory, parsePersistedStats, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
 import { replyToChat } from './main/chat-replies';
 import { chatWithAi, loadAiConfig, type AiChatMessage, type AiConfig } from './main/ai-chat';
 import { fetchWeatherText } from './main/weather';
@@ -34,7 +34,7 @@ let dragSession: { bounds: Rect; cursor: Point } | undefined;
 let resizeSession: { bounds: Rect; cursor: Point } | undefined;
 let runtimeRendererReport: RuntimeReadyReport | undefined;
 let aiConfig: AiConfig | undefined;
-let chatHistory: AiChatMessage[] = [];
+let chatHistory: ChatMessage[] = [];
 const runtimeReadyRenderers = new Set<Role>();
 let runtimeWindowReady = false;
 let runtimeCommitted = false;
@@ -543,38 +543,41 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   return result;
 }
 
+async function persistChatHistory(): Promise<void> {
+  await atomicWriteJson(userFile('chat-history.json'), chatHistory);
+}
+
 async function chatReply(text: string): Promise<string> {
+  chatHistory.push({ role: 'user', content: text });
   const fallback = replyToChat(text, { name: effectiveDisplayName(), mood: stats.mood, affection: stats.affection });
-  if (!aiConfig) return fallback;
-  const now = new Date();
-  const weekday = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
-  const timeText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekday} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const promptLines = [
-    `你是桌面宠物"${effectiveDisplayName()}"，一个住在用户电脑上的可爱小伙伴。`,
-    `性格：${spec.character.personality.join('、')}。`,
-    `当前状态：好感度 ${stats.affection}/300，心情 ${stats.mood}/100。`,
-    `现在的时间是：${timeText}。回答与日期/时间相关的问题时以此为准。`,
-    '用中文回答，语气口语化、可爱、简短（尽量不超过40个字），不要使用 markdown 格式。',
-  ];
-  const city = aiConfig.city ?? '北京';
-  const weather = await fetchWeatherText(city);
-  if (weather) promptLines.push(`实时天气：${weather}。用户问天气时以此为准。`);
-  promptLines.push(...await buildContextLines(reminders));
-  const systemPrompt = promptLines.join('\n');
-  const messages: AiChatMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...chatHistory.slice(-10),
-    { role: 'user', content: text },
-  ];
-  try {
-    const reply = await chatWithAi(aiConfig, messages);
-    chatHistory.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
-    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
-    return reply;
-  } catch (error) {
-    void logger?.write('warn', 'ai-chat-failed', { message: error instanceof Error ? error.message : String(error) });
-    return fallback;
+  let reply = fallback;
+  if (aiConfig) {
+    const now = new Date();
+    const weekday = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+    const timeText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekday} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const promptLines = [
+      `你是桌面宠物"${effectiveDisplayName()}"，一个住在用户电脑上的可爱小伙伴。`,
+      `性格：${spec.character.personality.join('、')}。`,
+      `当前状态：好感度 ${stats.affection}/300，心情 ${stats.mood}/100。`,
+      `现在的时间是：${timeText}。回答与日期/时间相关的问题时以此为准。`,
+      '用中文回答，语气口语化、可爱、简短（尽量不超过40个字），不要使用 markdown 格式。',
+    ];
+    const city = aiConfig.city ?? '北京';
+    const weather = await fetchWeatherText(city);
+    if (weather) promptLines.push(`实时天气：${weather}。用户问天气时以此为准。`);
+    promptLines.push(...await buildContextLines(reminders));
+    const messages: AiChatMessage[] = [{ role: 'system', content: promptLines.join('\n') }, ...chatHistory.slice(-10)];
+    try {
+      reply = await chatWithAi(aiConfig, messages);
+    } catch (error) {
+      void logger?.write('warn', 'ai-chat-failed', { message: error instanceof Error ? error.message : String(error) });
+      reply = fallback;
+    }
   }
+  chatHistory.push({ role: 'assistant', content: reply });
+  if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+  void persistChatHistory();
+  return reply;
 }
 
 function showReminderComposer(): void {
@@ -856,6 +859,12 @@ function registerIpc(): void {
     sendActivity({ kind: 'interaction', stateId: 'notify', durationMs: 1600, feedback: reply });
     return reply;
   });
+  ipcMain.handle('chat:history', (event) => { assertSender(event, ['dashboard']); return chatHistory; });
+  ipcMain.handle('chat:clear', async (event) => {
+    assertSender(event, ['dashboard']);
+    chatHistory = [];
+    await persistChatHistory();
+  });
   ipcMain.handle('ai:status', (event) => { assertSender(event, ['dashboard']); return Boolean(aiConfig); });
   ipcMain.handle('pomodoro:start', (event) => {
     assertSender(event, ['dashboard']);
@@ -964,6 +973,7 @@ async function initialize(): Promise<void> {
   reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
   stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
   aiConfig = await loadAiConfig(app.getPath('userData'));
+  chatHistory = await readValidatedJson(userFile('chat-history.json'), [] as ChatMessage[], parseChatHistory);
   lastInteractionAt = stats.lastInteractionAt ?? Date.now();
   normalizeStatsDay();
   sessionStartedAt = Date.now();
