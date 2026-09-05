@@ -13,7 +13,7 @@
 
 ## 目录结构
 
-`
+```
 hongyi-pet/
 ├── app/                    # 主项目
 │   ├── src/                # 源代码（主进程 / 渲染进程 / 素材）
@@ -22,22 +22,22 @@ hongyi-pet/
 │   └── forge.config.js     # Electron Forge 配置
 ├── incoming-assets/        # 原始动画素材 (512x512 PNG)
 └── pet-spec.json           # 宠物配置规格
-`
+```
 
 ## 开发
 
-`ash
+```bash
 cd app
 npm install
 npm start
-`
+```
 
 ## 打包
 
-`ash
+```bash
 cd app
 npm run portable:win
-`
+```
 
 ---
 Powered by Doubao Builder · GitHub: [Dong2003610](https://github.com/Dong2003610)
