@@ -14,6 +14,7 @@ jobs:
     steps:
       - name: Disable git line ending conversion
         run: git config --global core.autocrlf false
+        working-directory: ${{ github.workspace }}
 
       - uses: actions/checkout@v4
 
