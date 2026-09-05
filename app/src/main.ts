@@ -13,6 +13,7 @@ import { localDateKey, nextReminderDelay, nextRepeatDueAt, parsePersistedStats, 
 import { replyToChat } from './main/chat-replies';
 import { chatWithAi, loadAiConfig, type AiChatMessage, type AiConfig } from './main/ai-chat';
 import { fetchWeatherText } from './main/weather';
+import { buildContextLines } from './main/context-skills';
 import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
 
@@ -558,6 +559,7 @@ async function chatReply(text: string): Promise<string> {
   const city = aiConfig.city ?? '北京';
   const weather = await fetchWeatherText(city);
   if (weather) promptLines.push(`实时天气：${weather}。用户问天气时以此为准。`);
+  promptLines.push(...await buildContextLines(reminders));
   const systemPrompt = promptLines.join('\n');
   const messages: AiChatMessage[] = [
     { role: 'system', content: systemPrompt },
