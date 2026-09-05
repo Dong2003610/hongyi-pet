@@ -5,6 +5,7 @@ export interface AiConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  city?: string;
 }
 
 export interface AiChatMessage {
@@ -22,7 +23,10 @@ export async function loadAiConfig(userDataDir: string): Promise<AiConfig | unde
     const apiKey = typeof parsed.apiKey === 'string' ? parsed.apiKey.trim() : '';
     const model = typeof parsed.model === 'string' ? parsed.model.trim() : '';
     if (!baseUrl || !apiKey || !model) return undefined;
-    return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey, model };
+    const city = typeof parsed.city === 'string' && parsed.city.trim() ? parsed.city.trim() : undefined;
+    const config: AiConfig = { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey, model };
+    if (city) config.city = city;
+    return config;
   } catch {
     return undefined;
   }

@@ -51,6 +51,20 @@ npm run portable:win
 2. 填入你的 API 信息后，把文件放到 `%APPDATA%\小红桌宠\`（开发模式为 `%APPDATA%\com-hongyi-desktop-pet\`）
 3. 重启桌宠，Dashboard 聊天区会显示「🤖 AI 聊天已启用」
 
+配置示例：
+
+```json
+{
+  "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+  "apiKey": "你的 Key",
+  "model": "glm-4-flash",
+  "enabled": true,
+  "city": "北京"
+}
+```
+
+> `city` 用于实时天气注入（Open-Meteo 免费源，无需 Key），改成你所在的城市即可，省略时默认「北京」。桌宠聊天时会自动携带当前日期时间和天气，因此日期回答准确、聊天气也有据可依。
+
 兼容 OpenAI `/chat/completions` 协议的服务商均可使用：
 
 | 服务商 | baseUrl | 免费模型示例 |

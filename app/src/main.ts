@@ -12,6 +12,7 @@ import { TypingListener } from './main/typing-listener';
 import { localDateKey, nextReminderDelay, nextRepeatDueAt, parsePersistedStats, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
 import { replyToChat } from './main/chat-replies';
 import { chatWithAi, loadAiConfig, type AiChatMessage, type AiConfig } from './main/ai-chat';
+import { fetchWeatherText } from './main/weather';
 import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
 
@@ -544,12 +545,20 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
 async function chatReply(text: string): Promise<string> {
   const fallback = replyToChat(text, { name: effectiveDisplayName(), mood: stats.mood, affection: stats.affection });
   if (!aiConfig) return fallback;
-  const systemPrompt = [
+  const now = new Date();
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  const timeText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekday} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const promptLines = [
     `你是桌面宠物"${effectiveDisplayName()}"，一个住在用户电脑上的可爱小伙伴。`,
     `性格：${spec.character.personality.join('、')}。`,
     `当前状态：好感度 ${stats.affection}/300，心情 ${stats.mood}/100。`,
+    `现在的时间是：${timeText}。回答与日期/时间相关的问题时以此为准。`,
     '用中文回答，语气口语化、可爱、简短（尽量不超过40个字），不要使用 markdown 格式。',
-  ].join('\n');
+  ];
+  const city = aiConfig.city ?? '北京';
+  const weather = await fetchWeatherText(city);
+  if (weather) promptLines.push(`实时天气：${weather}。用户问天气时以此为准。`);
+  const systemPrompt = promptLines.join('\n');
   const messages: AiChatMessage[] = [
     { role: 'system', content: systemPrompt },
     ...chatHistory.slice(-10),
