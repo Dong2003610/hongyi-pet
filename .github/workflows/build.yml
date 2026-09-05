@@ -12,6 +12,9 @@ jobs:
       run:
         working-directory: app
     steps:
+      - name: Disable git line ending conversion
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
