@@ -1,12 +1,14 @@
 import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
-import { PetStateMachine } from './state-machine';
+import { PetStateMachine, type StateFrame } from './state-machine';
+import { petPose } from './pose-motion';
 import './index.css';
 
 const petSpec = spec as PetSpec;
 
 const sprite = document.getElementById('pet-sprite') as HTMLImageElement;
+const motionLayer = document.getElementById('pet-motion') as HTMLDivElement;
 const container = document.getElementById('pet-container') as HTMLDivElement;
 const feedbackBubble = document.getElementById('feedback-bubble') as HTMLDivElement;
 
@@ -35,6 +37,8 @@ container.dataset.state = stateMachine.currentStateId();
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let blinkTimer: ReturnType<typeof setTimeout> | null = null;
 let animationFrame: number | null = null;
+let feedbackTimer: ReturnType<typeof setTimeout> | undefined;
+let acceptInteractionReply = false;
 
 // 设置呼吸动画
 const breathing = petSpec.motion.breathing;
@@ -45,47 +49,41 @@ if (breathing.enabled) {
   sprite.classList.add('breathing');
 }
 
-// 挤压回弹
-function playSquash(): void {
-  if (!petSpec.motion.squashStretch.enabled) return;
-  const squash = petSpec.motion.squashStretch;
-  document.documentElement.style.setProperty('--squash-duration', `${squash.durationMs}ms`);
-  document.documentElement.style.setProperty('--squash-intensity', `${squash.intensity}`);
-  sprite.classList.remove('squash');
-  void sprite.offsetWidth; // 触发重绘
-  sprite.classList.add('squash');
-}
-
-// squash 播放完毕必须移除类，否则 .squash 的 animation 会永久覆盖呼吸动画
-sprite.addEventListener('animationend', (event) => {
-  if (event.animationName === 'squash') sprite.classList.remove('squash');
-});
-
 // 显示反馈气泡
 function showFeedback(text: string): void {
+  if (feedbackTimer) clearTimeout(feedbackTimer);
   feedbackBubble.textContent = text;
   feedbackBubble.classList.add('show');
-  setTimeout(() => {
+  // Longer AI replies need time to read. A previous bubble must not hide a new one.
+  feedbackTimer = setTimeout(() => {
     feedbackBubble.classList.remove('show');
-  }, 2000);
+    feedbackTimer = undefined;
+  }, Math.min(9000, Math.max(4000, Array.from(text).length * 150)));
+}
+
+function renderFrame(snapshot: StateFrame): void {
+  container.dataset.state = snapshot.stateId;
+  const frameUrl = assetMap.get(snapshot.frame);
+  if (frameUrl) sprite.src = frameUrl;
+  const pose = petPose(snapshot.stateId, snapshot.frame);
+  motionLayer.style.transform = `translateY(-${pose.liftPercent}%)`;
+  // Normalise the cutout immediately when its frame changes. Tweening this
+  // scale would briefly show the oversized final frame, then shrink idle.
+  sprite.style.scale = String(pose.scale);
 }
 
 // 切换状态
 function setState(stateId: string, durationMs?: number, force = false): void {
   if (!stateMachine.start(stateId, performance.now(), durationMs, force)) return;
   const snapshot = stateMachine.tick(performance.now());
-  container.dataset.state = snapshot.stateId;
-  const frameUrl = assetMap.get(snapshot.frame);
-  if (frameUrl) sprite.src = frameUrl;
+  renderFrame(snapshot);
 }
 
 // 动画循环
 function animate(timestamp: number): void {
   const snapshot = stateMachine.tick(timestamp);
-  container.dataset.state = snapshot.stateId;
   if (snapshot.stateChanged) {
-    const frameUrl = assetMap.get(snapshot.frame);
-    if (frameUrl) sprite.src = frameUrl;
+    renderFrame(snapshot);
   }
   animationFrame = requestAnimationFrame(animate);
 }
@@ -120,7 +118,7 @@ container.addEventListener('click', () => {
     suppressNextClick = false;
     return;
   }
-  playSquash();
+  acceptInteractionReply = false;
   setState('happy');
   scheduleIdleEvents();
 });
@@ -143,6 +141,7 @@ container.addEventListener('pointerdown', (event) => {
 container.addEventListener('pointermove', (event) => {
   if (event.pointerId !== activePointerId) return;
   if (!isDragging && exceedsDragThreshold(pointerStart, { x: event.clientX, y: event.clientY })) {
+    acceptInteractionReply = false;
     isDragging = true;
     dragBegin = window.petAPI?.window.beginDrag() ?? Promise.resolve();
   }
@@ -182,6 +181,7 @@ container.addEventListener('dragover', (event) => {
 
 container.addEventListener('drop', (event) => {
   event.preventDefault();
+  acceptInteractionReply = false;
   const files = event.dataTransfer?.files;
   if (!files || files.length === 0) return;
   const paths: string[] = [];
@@ -246,6 +246,9 @@ container.addEventListener('contextmenu', (e) => {
 
 // 监听状态活动
 window.petAPI?.events.onStateActivity((activity: StateActivity) => {
+  if (activity.kind === 'interaction-reply' && !acceptInteractionReply) return;
+  if (activity.kind === 'interaction') acceptInteractionReply = true;
+  else if (activity.stateId && activity.kind !== 'move') acceptInteractionReply = false;
   if (activity.stateId) {
     const force = activity.kind === 'interaction' || activity.kind === 'notify';
     setState(activity.stateId, activity.durationMs, force);
@@ -304,3 +307,10 @@ async function init(): Promise<void> {
 }
 
 init();
+
+window.addEventListener('beforeunload', () => {
+  if (feedbackTimer) clearTimeout(feedbackTimer);
+  if (idleTimer) clearTimeout(idleTimer);
+  if (blinkTimer) clearTimeout(blinkTimer);
+  if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+});
