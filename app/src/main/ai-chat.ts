@@ -13,6 +13,13 @@ export interface AiChatMessage {
   content: string;
 }
 
+export interface AiChatOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  temperature?: number;
+  maxTokens?: number;
+}
+
 // 从 userData 目录读取 ai-config.json；文件缺失或字段不完整时返回 undefined（回退到本地规则回复）。
 export async function loadAiConfig(userDataDir: string): Promise<AiConfig | undefined> {
   try {
@@ -37,9 +44,12 @@ function chatUrl(baseUrl: string): string {
 }
 
 // 调用 OpenAI 兼容的 chat/completions 接口（豆包/智谱 GLM/DeepSeek/硅基流动等均兼容）。
-export async function chatWithAi(config: AiConfig, messages: AiChatMessage[]): Promise<string> {
+export async function chatWithAi(config: AiConfig, messages: AiChatMessage[], options: AiChatOptions = {}): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  if (options.signal?.aborted) controller.abort();
+  const timer = setTimeout(abort, options.timeoutMs ?? 30_000);
   try {
     const response = await fetch(chatUrl(config.baseUrl), {
       method: 'POST',
@@ -50,8 +60,8 @@ export async function chatWithAi(config: AiConfig, messages: AiChatMessage[]): P
       body: JSON.stringify({
         model: config.model,
         messages,
-        temperature: 0.8,
-        max_tokens: 320,
+        temperature: options.temperature ?? 0.8,
+        max_tokens: options.maxTokens ?? 320,
       }),
       signal: controller.signal,
     });
@@ -62,5 +72,6 @@ export async function chatWithAi(config: AiConfig, messages: AiChatMessage[]): P
     return content.slice(0, 500);
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener('abort', abort);
   }
 }
