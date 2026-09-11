@@ -23,13 +23,20 @@ html, body {
   -webkit-user-select: none;
 }
 
+#pet-motion {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 95%;
+  transition: transform 110ms ease-out;
+}
+
 #pet-sprite {
   width: 100%;
   height: 100%;
   object-fit: contain;
   pointer-events: none;
   -webkit-user-drag: none;
-  transform-origin: bottom center;
+  transform-origin: 50% 95%;
 }
 
 .breathing {
@@ -42,34 +49,34 @@ html, body {
   50% { transform: scale(var(--breath-scale-x, 1.012), var(--breath-scale-y, 1.022)); }
 }
 
-.squash {
-  animation: squash var(--squash-duration, 0.32s) ease-out;
-}
-
-@keyframes squash {
-  0% { transform: scale(1, 1); }
-  50% { transform: scale(calc(1 + var(--squash-intensity, 0.08)), calc(1 - var(--squash-intensity, 0.08))); }
-  100% { transform: scale(1, 1); }
+#pet-container[data-state="happy"] #pet-sprite {
+  animation: none;
 }
 
 #feedback-bubble {
   position: absolute;
-  top: 10%;
+  bottom: 2%;
   left: 50%;
   transform: translateX(-50%);
   background: white;
-  padding: 8px 16px;
+  width: max-content;
+  max-width: calc(100% - 12px);
+  padding: 3px 6px;
   border-radius: 16px;
-  font-size: 14px;
+  font-size: clamp(7px, 6vw, 12px);
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  z-index: 1;
   color: #333;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.14);
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 #feedback-bubble.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(-10px);
+  transform: translateX(-50%);
 }
