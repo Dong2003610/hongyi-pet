@@ -1,0 +1,43 @@
+{
+  "id": "2026-09-11-interaction-motion",
+  "date": "2026-09-11",
+  "baselineCommit": "a975e17",
+  "reason": "User-requested builder migration: correct airborne click poses and enable varied AI speech for interaction menus.",
+  "contractVersion": 5,
+  "changes": [
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "eb475f95cdd366a83b7264e5a9b7267e388dd3616ac0595a26988dacfec17875",
+      "to": "ef4af61371441073ea3116d56f30c9a928d9b0f32070064f5726450b7fc01905"
+    },
+    {
+      "file": "package.json",
+      "from": "285d34ef04a3346860935ad17b1e8fcc164546861c19486c579ced1ad549edb9",
+      "to": "bd5bce7b0d3601c95192db741a42c71383a26ca1efba15a851ae3a458ad050ed"
+    },
+    {
+      "file": "src/main.ts",
+      "from": "ab85149001cece1ded75ce6abc303c11fcc5ec0a870a0c2536e29f94ff0b04ce",
+      "to": "33031b6dd204b50f0a4d46a0d5c10ba98dbbf1e4cd23aeadef363717d70a73ee"
+    }
+  ],
+  "behavior": [
+    "Translate jump artwork upward inside the existing window; immediately normalize oversized final cutout and restore idle pose.",
+    "Immediately play an interaction with a varied local reply, then update the bubble with a short AI response using the configured provider.",
+    "Keep interaction speech separate from chat history and reminder actions; cancel stale requests, bound replies to 40 Unicode characters, and preserve fallback on failure.",
+    "Add unit tests and an isolated renderer UI test without calling a real AI provider."
+  ],
+  "validation": {
+    "unit": "npm test: 31 passed",
+    "types": "tsc --noEmit: passed",
+    "renderer": "npm run test:pet-ui: passed using compiled current renderer and mock IPC in hidden Electron",
+    "experience": "node tools/qa-experience.mjs: passed",
+    "devContract": "node tools/validate-dev-contract.mjs: passed",
+    "knownBaselineFailures": [
+      "validate-spec: existing spec lacks typing:activity, file:drop, file:drop-success, file:drop-fail trigger owners.",
+      "validate-asset-links: existing dashboard does not recursively import nested runtime assets.",
+      "qa-ui: existing dashboard-hidden-scrollbar rule fails.",
+      "qa-assets: unchanged raw PNG set passes 39/53; pre-existing scale drift/occupancy diagnostics. Runtime jump correction does not rewrite these PNGs."
+    ]
+  }
+}
