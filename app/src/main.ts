@@ -12,6 +12,7 @@ import { TypingListener } from './main/typing-listener';
 import { localDateKey, nextReminderDelay, nextRepeatDueAt, parseChatHistory, parsePersistedStats, parseReminders, parseSettings, type PersistedStats } from './main/data-validation';
 import { replyToChat } from './main/chat-replies';
 import { chatWithAi, loadAiConfig, type AiChatMessage, type AiConfig } from './main/ai-chat';
+import { InteractionReplyService } from './main/interaction-replies';
 import { fetchWeatherText } from './main/weather';
 import { buildContextLines } from './main/context-skills';
 import { AI_ACTION_MARKER, aiReminderPromptLines, parseAiReminderAction, stripAiReminderAction } from './main/ai-actions';
@@ -36,6 +37,7 @@ let resizeSession: { bounds: Rect; cursor: Point } | undefined;
 let runtimeRendererReport: RuntimeReadyReport | undefined;
 let aiConfig: AiConfig | undefined;
 let chatHistory: ChatMessage[] = [];
+const interactionReplies = new InteractionReplyService();
 const runtimeReadyRenderers = new Set<Role>();
 let runtimeWindowReady = false;
 let runtimeCommitted = false;
@@ -519,6 +521,7 @@ function broadcastStats(): void {
 }
 
 function sendActivity(activity: StateActivity): void {
+  if (activity.stateId) interactionReplies.cancel();
   if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send('state:activity', activity);
 }
 
@@ -535,8 +538,7 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   stats.mood = Math.min(100, stats.mood + Math.max(1, Math.ceil(interaction.affectionGain / 2)));
   stats.todayInteractions += 1;
   markInteracted();
-  const feedback = interaction.feedback[Math.floor(Math.random() * interaction.feedback.length)] ?? interaction.label;
-  await persistStats();
+  const feedback = interactionReplies.fallback(interaction);
   const result: InteractionResult = { interaction, feedback, stats: publicStats() };
   sendActivity({ kind: 'interaction', stateId: interaction.stateId, durationMs: interaction.durationMs, feedback });
   if (interaction.id === 'take-walk') walkPet(1, interaction.durationMs);
@@ -544,6 +546,12 @@ async function triggerInteraction(id: string): Promise<InteractionResult> {
   else if (interaction.id === 'feed-snack') playSound('eat');
   else playSound('notify');
   broadcastStats();
+  void interactionReplies.enhance(interaction, {
+    name: effectiveDisplayName(), personality: spec.character.personality, mood: stats.mood, affection: stats.affection,
+  }, aiConfig, (reply) => {
+    if (!isQuitting) sendActivity({ kind: 'interaction-reply', feedback: reply });
+  });
+  await persistStats();
   return result;
 }
 
@@ -1043,6 +1051,7 @@ if (hasSingleInstanceLock) {
 app.on('window-all-closed', () => { /* tray app stays alive */ });
 app.on('before-quit', (event) => {
   isQuitting = true;
+  interactionReplies.cancel();
   typingListener.stop();
   globalShortcut.unregisterAll();
   if (activityTimer) clearInterval(activityTimer);
