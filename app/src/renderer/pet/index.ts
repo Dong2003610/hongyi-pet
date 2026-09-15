@@ -52,13 +52,18 @@ if (breathing.enabled) {
 // 显示反馈气泡
 function showFeedback(text: string): void {
   if (feedbackTimer) clearTimeout(feedbackTimer);
-  feedbackBubble.textContent = text;
+  const characters = Array.from(text);
+  const limit = window.innerWidth <= 115 ? 16 : window.innerWidth <= 150 ? 26 : window.innerWidth <= 190 ? 34 : 40;
+  const visibleText = characters.length > limit ? `${characters.slice(0, limit - 1).join('')}…` : text;
+  feedbackBubble.textContent = visibleText;
+  feedbackBubble.title = visibleText === text ? '' : text;
+  feedbackBubble.setAttribute('aria-label', text);
   feedbackBubble.classList.add('show');
   // Longer AI replies need time to read. A previous bubble must not hide a new one.
   feedbackTimer = setTimeout(() => {
     feedbackBubble.classList.remove('show');
     feedbackTimer = undefined;
-  }, Math.min(9000, Math.max(4000, Array.from(text).length * 150)));
+  }, Math.min(9000, Math.max(4000, characters.length * 150)));
 }
 
 function renderFrame(snapshot: StateFrame): void {
