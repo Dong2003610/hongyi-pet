@@ -23,7 +23,7 @@
                                "src/main/drag.ts":  "d49e748f3f95cba8a97140feb824e15f2137e6dc18db8fca10f1f3f4ae4aaa35",
                                "src/main/chat-replies.ts":  "f2ec60ecaf3b1c6fde699b0820f607b440118d2944b9bf1126fc3dfe20888463",
                                "src/renderer/pet/state-machine.ts":  "a4aa2c3c050bd82c35d89d8941dba6beceb643e4a75d502d2c37a0e334daf657",
-                               "src/renderer/pet/index.ts":  "ef4af61371441073ea3116d56f30c9a928d9b0f32070064f5726450b7fc01905",
+                               "src/renderer/pet/index.ts":  "6da0ee46bca56eebb0d3498438be3094600eca0c2dd47c44e561d6d4f51fa612",
                                "tests/e2e/app.e2e.ts":  "549b49b032dc04bec78267f5dd8e4d31fd73bd0b5d2ad424fa9bdb0f11789ff4",
                                "webpack.main.config.js":  "9854a107cc89f6fa14b64eb4f039e1b1f964e2052cdad6cb2903c9855e56929e",
                                "webpack.renderer.config.js":  "c778f5e8e033176c201ca5714c2c62ebe52a86bf3557d7b131f5bd5d254289c9",
