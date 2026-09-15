@@ -1,0 +1,23 @@
+{
+  "id": "2026-09-15-readable-small-bubbles",
+  "date": "2026-09-15",
+  "reason": "User-requested builder migration: keep speech readable at the small and minimum pet sizes without covering the character's head.",
+  "contractVersion": 5,
+  "changes": [
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "ef4af61371441073ea3116d56f30c9a928d9b0f32070064f5726450b7fc01905",
+      "to": "6da0ee46bca56eebb0d3498438be3094600eca0c2dd47c44e561d6d4f51fa612"
+    }
+  ],
+  "behavior": [
+    "Use at least 11px semibold text at every pet size.",
+    "Shorten only the visual copy at compact sizes while retaining the complete response as accessible text.",
+    "Keep the bottom speech bubble below the character's head across all six configured sizes."
+  ],
+  "validation": {
+    "renderer": "npm run test:pet-ui: passed at 110, 132, 176, 220, 264 and 330 pixels with mock IPC",
+    "types": "tsc --noEmit: passed",
+    "preflight": "node tools/preflight.mjs: passed"
+  }
+}
