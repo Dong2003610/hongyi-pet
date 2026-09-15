@@ -110,10 +110,16 @@ async function main() {
       await emit({ kind: 'interaction', stateId: 'notify', feedback: '温'.repeat(40) });
       await page.clock.runFor(350);
       const bubble = await page.locator('#feedback-bubble').boundingBox();
+      const bubbleStyle = await page.locator('#feedback-bubble').evaluate((el) => ({
+        fontSize: parseFloat(getComputedStyle(el).fontSize), text: el.textContent, fullText: el.getAttribute('aria-label'),
+      }));
       assert.ok(bubble.x >= 0 && bubble.y >= 0 && bubble.x + bubble.width <= size + 1 && bubble.y + bubble.height <= size + 1,
         `40-character response must fit the ${size}px pet window: ${JSON.stringify(bubble)}`);
       assert.ok(bubble.y >= size * 0.48,
         `speech must stay below the character's head in the ${size}px pet window: ${JSON.stringify(bubble)}`);
+      assert.ok(bubbleStyle.fontSize >= 11, `speech remains readable at ${size}px: ${JSON.stringify(bubbleStyle)}`);
+      assert.equal(bubbleStyle.fullText, '温'.repeat(40), 'accessible text keeps the complete response');
+      if (size <= 190) assert.ok(bubbleStyle.text.endsWith('…'), 'compact sizes shorten long visual replies');
     }
     await page.setViewportSize({ width: 176, height: 176 });
     await emit({ kind: 'interaction-reply', feedback: '今天的小挑战：给自己找一个值得开心的小理由。' });
