@@ -31,25 +31,6 @@ function wavFromSamples(samples) {
 
 const sine = (freq, t) => Math.sin(2 * Math.PI * freq * t);
 
-// eat: 两次短促的"咔嚓"声（噪声 + 低频闷响）
-function makeEat() {
-  const samples = new Array(Math.floor(0.24 * SAMPLE_RATE)).fill(0);
-  const burst = (startSec, lenSec, level) => {
-    const start = Math.floor(startSec * SAMPLE_RATE);
-    const len = Math.floor(lenSec * SAMPLE_RATE);
-    for (let i = 0; i < len; i += 1) {
-      const t = i / SAMPLE_RATE;
-      const env = Math.exp(-t * 45);
-      const noise = (Math.random() * 2 - 1) * env * level;
-      const thump = sine(170, t) * env * level * 0.6;
-      samples[start + i] += noise + thump;
-    }
-  };
-  burst(0, 0.07, 0.8);
-  burst(0.11, 0.08, 0.6);
-  return samples;
-}
-
 // pet: 轻快的"啵"声（正弦上滑 + 二次谐波）
 function makePet() {
   const durSec = 0.26;
@@ -85,7 +66,8 @@ function makeNotify() {
 
 const outDir = path.resolve(process.cwd(), 'src', 'assets', 'sounds');
 await mkdir(outDir, { recursive: true });
-await writeFile(path.join(outDir, 'eat.wav'), wavFromSamples(makeEat()));
+// eat.wav 是 CC0 真实录音，来源见 src/assets/sounds/SOURCES.md。
+// 不在这里生成，避免重新生成其他音效时把它覆盖。
 await writeFile(path.join(outDir, 'pet.wav'), wavFromSamples(makePet()));
 await writeFile(path.join(outDir, 'notify.wav'), wavFromSamples(makeNotify()));
 console.log(`sounds generated: ${outDir}`);
