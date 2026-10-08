@@ -133,6 +133,7 @@ let isDragging = false;
 let pointerStart = { x: 0, y: 0 };
 let lastHorizontalScreenX = 0;
 let dragWalkState: 'walk-left' | 'walk-right' | undefined;
+let dragIdleTimer: ReturnType<typeof setTimeout> | undefined;
 let activePointerId: number | undefined;
 let dragUpdatePending = false;
 let suppressNextClick = false;
@@ -165,6 +166,14 @@ container.addEventListener('pointermove', (event) => {
       dragWalkState = nextWalkState;
       setState(nextWalkState, 60 * 60 * 1000, true);
     }
+    if (dragIdleTimer) clearTimeout(dragIdleTimer);
+    dragIdleTimer = setTimeout(() => {
+      dragIdleTimer = undefined;
+      if (isDragging && dragWalkState) {
+        dragWalkState = undefined;
+        setState('idle', undefined, true);
+      }
+    }, 250);
   }
   if (dragUpdatePending) return;
   dragUpdatePending = true;
@@ -183,6 +192,8 @@ function finishPointer(event: PointerEvent): void {
   const dragged = isDragging;
   isDragging = false;
   dragUpdatePending = false;
+  if (dragIdleTimer) clearTimeout(dragIdleTimer);
+  dragIdleTimer = undefined;
   if (dragged) {
     suppressNextClick = true;
     if (dragWalkState) setState('idle', undefined, true);
@@ -331,6 +342,7 @@ async function init(): Promise<void> {
 init();
 
 window.addEventListener('beforeunload', () => {
+  if (dragIdleTimer) clearTimeout(dragIdleTimer);
   if (feedbackTimer) clearTimeout(feedbackTimer);
   if (idleTimer) clearTimeout(idleTimer);
   if (blinkTimer) clearTimeout(blinkTimer);
