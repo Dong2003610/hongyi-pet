@@ -131,6 +131,8 @@ container.addEventListener('click', () => {
 // 拖拽
 let isDragging = false;
 let pointerStart = { x: 0, y: 0 };
+let lastHorizontalScreenX = 0;
+let dragWalkState: 'walk-left' | 'walk-right' | undefined;
 let activePointerId: number | undefined;
 let dragUpdatePending = false;
 let suppressNextClick = false;
@@ -140,6 +142,8 @@ container.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || activePointerId !== undefined) return;
   activePointerId = event.pointerId;
   pointerStart = { x: event.clientX, y: event.clientY };
+  lastHorizontalScreenX = event.screenX;
+  dragWalkState = undefined;
   container.setPointerCapture(event.pointerId);
 });
 
@@ -151,6 +155,17 @@ container.addEventListener('pointermove', (event) => {
     dragBegin = window.petAPI?.window.beginDrag() ?? Promise.resolve();
   }
   if (!isDragging) return;
+  // The window moves during a drag, so clientX is relative to a moving origin.
+  // Screen coordinates keep the facing direction stable for diagonal movement.
+  const horizontalDelta = event.screenX - lastHorizontalScreenX;
+  if (Math.abs(horizontalDelta) >= 2) {
+    lastHorizontalScreenX = event.screenX;
+    const nextWalkState = horizontalDelta < 0 ? 'walk-left' : 'walk-right';
+    if (dragWalkState !== nextWalkState) {
+      dragWalkState = nextWalkState;
+      setState(nextWalkState, 60 * 60 * 1000, true);
+    }
+  }
   if (dragUpdatePending) return;
   dragUpdatePending = true;
   requestAnimationFrame(() => {
@@ -170,10 +185,12 @@ function finishPointer(event: PointerEvent): void {
   dragUpdatePending = false;
   if (dragged) {
     suppressNextClick = true;
+    if (dragWalkState) setState('idle', undefined, true);
     void (dragBegin ?? Promise.resolve())
       .then(() => window.petAPI?.window.endDrag())
       .catch(() => {});
   }
+  dragWalkState = undefined;
   dragBegin = undefined;
 }
 
@@ -254,7 +271,7 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
   if (activity.kind === 'interaction-reply' && !acceptInteractionReply) return;
   if (activity.kind === 'interaction') acceptInteractionReply = true;
   else if (activity.stateId && activity.kind !== 'move') acceptInteractionReply = false;
-  if (activity.stateId) {
+  if (activity.stateId && !isDragging) {
     const force = activity.kind === 'interaction' || activity.kind === 'notify';
     setState(activity.stateId, activity.durationMs, force);
     scheduleIdleEvents();
