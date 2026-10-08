@@ -1,0 +1,23 @@
+{
+  "id": "2026-10-08-drag-idle-on-pause",
+  "date": "2026-10-08",
+  "reason": "User-requested behavior: stop the walking animation when the pointer pauses during a drag, and resume it when horizontal movement restarts.",
+  "contractVersion": 5,
+  "changes": [
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "a792a5d56b1b0ab5bd6873dfccb92851e27875ee2455c24a2c998dbadc1a17a7",
+      "to": "8bd28c3a3a703d2f88efd1908518da5d04a13289c5cc2fda6d8c6fc3a3d04b82"
+    }
+  ],
+  "behavior": [
+    "Return to idle after 250 ms without horizontal pointer movement while dragging.",
+    "Resume directional walking on subsequent horizontal movement without releasing the pointer.",
+    "Vertical-only movement does not restart walking."
+  ],
+  "validation": {
+    "types": "npx tsc --noEmit: passed",
+    "renderer": "npm run test:pet-ui: passed",
+    "preflight": "node tools/preflight.mjs: passed"
+  }
+}
