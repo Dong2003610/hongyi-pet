@@ -1,0 +1,23 @@
+{
+  "id": "2026-10-08-drag-walk-direction",
+  "date": "2026-10-08",
+  "reason": "User-requested behavior: show directional walking frames while moving the pet window by dragging.",
+  "contractVersion": 5,
+  "changes": [
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "6da0ee46bca56eebb0d3498438be3094600eca0c2dd47c44e561d6d4f51fa612",
+      "to": "a792a5d56b1b0ab5bd6873dfccb92851e27875ee2455c24a2c998dbadc1a17a7"
+    }
+  ],
+  "behavior": [
+    "Drag to the right or diagonally right to cycle the walk-right frames.",
+    "Drag to the left or diagonally left to cycle the walk-left frames.",
+    "Ignore vertical movement when deciding facing direction and return to idle on release."
+  ],
+  "validation": {
+    "types": "npx tsc --noEmit: passed",
+    "renderer": "npm run test:pet-ui: passed",
+    "preflight": "node tools/preflight.mjs: passed"
+  }
+}
