@@ -1,0 +1,47 @@
+{
+  "id": "20261029-companion-product-redesign",
+  "description": "User-authorized five-part product redesign: shared task/reminder/focus rules, contextual chat cards, truthful receipts and undo, Conversation plus Today navigation, and quiet work companionship. Records source entry upgrades; build tooling and template/schema contract versions are unchanged.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "aa1d19ae92b3b034ff7a87dcba709ee53a810857bd043eaa69b996d2a92c673d",
+      "to": "d0e9807695f6d4c17bd226a37e6b8ff036c88dbf8d7423700982215c508d2e81"
+    },
+    {
+      "file": "src/preload.ts",
+      "from": "f8bafaf63bb56085795f5b4422a17365db5aa067565276522876a84f26d0bc45",
+      "to": "12f22c02489ccd1a8509d867cc072a64c64559de22d320ea16e4c323ee6d4016"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "bae002be288606b39351c7b68ca544c0b2b6b581903a8d2717e54f503a3205ca",
+      "to": "a8859959e04c982c763ac3d4f7d3cf68c012fbb9b4893a9f790c253dc685d21f"
+    },
+    {
+      "file": "src/main/data-validation.ts",
+      "from": "db60ef287f0edaf478eedb9a7e2eb2974db9203ab357e7573ff7115e3202a4cd",
+      "to": "9af64345869b7974995ce8d8c292e3d5a20b441d07cfd0c50d0f6d66c8b652dd"
+    },
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "e4edb45a03eae05da712e3aee2cabe0aea47eb10a9b1b671c7eaf8ad989039a8",
+      "to": "7ba4a63adc5af387fa256182f556bf2eb3c3c7da9424b70221cd9542298178c7"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "61a0b00faf77700aaea4c1a1b87673640c954265ec4d7e7db5dabea64c8dac32",
+      "to": "605cf478edd84e8e4002ec1b9aaba7147421719fd5a56651556a3a794f814a3c"
+    }
+  ],
+  "validation": [
+    "all tests/unit/*.test.ts and *.test.mjs via tsx --test",
+    "tsc --noEmit",
+    "node tests/e2e/task-list.e2e.cjs",
+    "node tests/e2e/task-integration.e2e.cjs",
+    "node tests/e2e/pet-surfaces.e2e.cjs",
+    "node tools/preflight.mjs",
+    "node tools/validate-dev-contract.mjs"
+  ]
+}
