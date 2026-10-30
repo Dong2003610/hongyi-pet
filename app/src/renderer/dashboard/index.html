@@ -130,7 +130,7 @@
       <div class="tab-panels">
         <div class="tab-panel active" id="panel-chat">
           <div class="chat-area">
-            <p id="chat-selection" class="chat-selection" hidden></p><div class="chat-messages" id="chat-messages" role="log" aria-live="polite"></div><div class="chat-suggestions"><button type="button" data-chat-prompt="今天有哪些任务">今天做什么</button><button type="button" data-chat-prompt="自由专注25分钟">专注一会儿</button><button type="button" data-chat-prompt="总结一下今天">回顾今天</button></div>
+            <p id="chat-selection" class="chat-selection" hidden></p><div class="chat-messages" id="chat-messages" role="log" aria-live="polite"></div><div class="chat-suggestions"><button type="button" data-chat-prompt="今天有哪些任务">今天做什么</button><button type="button" data-chat-prompt="自由专注25分钟">专注一会儿</button><button type="button" data-chat-prompt="总结一下今天">回顾今天</button><button type="button" data-chat-prompt="今天有什么新闻">今日新闻</button></div>
             <div class="chat-input-row">
               <input class="chat-input" id="chat-input" placeholder="聊天、记事，或告诉我想做什么…" maxlength="500">
               <button class="chat-send" id="chat-send">发送</button>
@@ -219,7 +219,7 @@
           </div>
         </div>
 
-        <div class="tab-panel" id="panel-settings"><button type="button" class="back-button" data-open-nav="chat">← 回到对话</button><div class="settings-group ai-settings"><div class="section-title">AI 聊天</div><form id="ai-config-form"><label>服务地址<input id="ai-base-url" type="url" required></label><label>模型<input id="ai-model" required maxlength="150"></label><label>API Key<input id="ai-api-key" type="password" autocomplete="off" placeholder="已配置时留空沿用" maxlength="2000"></label><label>天气城市<input id="ai-city" maxlength="50"></label><div class="task-tool-buttons"><button type="submit">保存</button><button id="ai-test" type="button">测试连接</button></div><p id="ai-config-message" role="status"></p></form></div><div id="companion-settings"></div>
+        <div class="tab-panel" id="panel-settings"><button type="button" class="back-button" data-open-nav="chat">← 回到对话</button><div class="settings-group ai-settings"><div class="section-title">AI 聊天</div><form id="ai-config-form"><label>服务地址<input id="ai-base-url" type="url" required></label><label>模型<input id="ai-model" required maxlength="150"></label><label>API Key<input id="ai-api-key" type="password" autocomplete="off" placeholder="已配置时留空沿用" maxlength="2000"></label><label>天气城市<input id="ai-city" maxlength="50"></label><div class="task-tool-buttons"><button type="submit">保存</button><button id="ai-test" type="button">测试连接</button></div><p id="ai-config-message" role="status"></p></form></div><div id="companion-settings"></div><div class="settings-group"><div class="section-title">新闻简报</div><p class="task-hint">财经、科技、AI、国际政策。默认不主动推送，查询时获取；开启后需保持桌宠运行，专注与免打扰期间延后。</p><form id="news-settings"><label><input id="news-enabled" type="checkbox">每日推送新闻</label><label>北京时间<input id="news-time" type="time" value="09:00" required></label><button type="submit" class="action-btn">保存新闻设置</button><p id="news-status" class="task-hint" role="status"></p></form></div>
           <div class="settings-group">
             <div class="setting-item">
               <div><div class="setting-label">置顶显示</div><div class="setting-desc">桌宠窗口始终在最前面</div></div>
