@@ -123,7 +123,7 @@
         "emoji": "😴",
         "label": "让她睡觉",
         "stateId": "sleep",
-        "durationMs": 9000,
+        "durationMs": 15000,
         "affectionGain": 1,
         "feedback": [
           "好困哦…",
@@ -274,7 +274,7 @@
         "peek-04.png",
         "peek-05.png"
       ],
-      "frameDurationMs": 120,
+      "frameDurationMs": 150,
       "loop": false,
       "priority": 55,
       "interrupt": "resume",
@@ -298,7 +298,7 @@
         "pet-04.png",
         "pet-05.png"
       ],
-      "frameDurationMs": 120,
+      "frameDurationMs": 160,
       "loop": true,
       "priority": 85,
       "interrupt": "restart",
@@ -319,10 +319,9 @@
         "eat-01.png",
         "eat-02.png",
         "eat-03.png",
-        "eat-04.png",
         "eat-05.png"
       ],
-      "frameDurationMs": 120,
+      "frameDurationMs": 160,
       "loop": true,
       "priority": 85,
       "interrupt": "restart",
@@ -344,10 +343,9 @@
         "walk-left-02.png",
         "walk-left-03.png",
         "walk-left-04.png",
-        "walk-left-05.png",
-        "walk-left-06.png"
+        "walk-left-05.png"
       ],
-      "frameDurationMs": 130,
+      "frameDurationMs": 140,
       "loop": true,
       "priority": 60,
       "interrupt": "resume",
@@ -370,10 +368,9 @@
         "walk-right-02.png",
         "walk-right-03.png",
         "walk-right-04.png",
-        "walk-right-05.png",
-        "walk-right-06.png"
+        "walk-right-05.png"
       ],
-      "frameDurationMs": 130,
+      "frameDurationMs": 140,
       "loop": true,
       "priority": 60,
       "interrupt": "resume",
@@ -398,7 +395,7 @@
         "sleep-05.png",
         "sleep-06.png"
       ],
-      "frameDurationMs": 1500,
+      "frameDurationMs": 2500,
       "loop": true,
       "priority": 80,
       "interrupt": "resume",
