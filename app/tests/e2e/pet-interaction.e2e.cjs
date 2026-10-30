@@ -45,7 +45,7 @@ async function main() {
         events: {
           onStateActivity: (callback) => { window.emitActivity = callback; }, onPlaySound: () => {},
         },
-        window: { beginDrag: async () => {}, updateDrag: async () => {}, endDrag: async () => {}, showContextMenu: async () => {} },
+        window: { beginDrag: async () => {}, updateDrag: async () => {}, endDrag: async () => {}, showContextMenu: async () => {}, showQuickChat: async () => { window.quickChatCount = (window.quickChatCount || 0) + 1; } },
         files: { getPathForFile: () => '', put: async () => ({ copied: [] }) },
         runtime: { ready: async () => { window.petReady = true; }, fail: async (error) => { throw new Error(error.message); } },
       };
@@ -118,6 +118,12 @@ async function main() {
     assert.equal((await pose()).state, 'walk-left', 'autonomous movement does not override an active drag');
     await page.locator('#pet-container').dispatchEvent('pointerup', { pointerId: 1, clientX: 40, clientY: 95, screenX: 490 });
     assert.equal((await pose()).state, 'idle', 'releasing the pointer ends the walking animation');
+    await page.locator('#pet-container').dispatchEvent('dblclick');
+    assert.equal(await page.evaluate(() => window.quickChatCount || 0), 0, 'drag-release does not accidentally open quick chat');
+    await page.clock.runFor(500);
+    await page.locator('#pet-container').dispatchEvent('click');
+    await page.locator('#pet-container').dispatchEvent('dblclick');
+    assert.equal(await page.evaluate(() => window.quickChatCount), 1, 'real double click opens quick chat');
     await emit({ kind: 'interaction-reply', feedback: '拖拽前的旧回复' });
     assert.doesNotMatch(await page.locator('#feedback-bubble').textContent(), /拖拽前/);
     await emit({ kind: 'interaction', stateId: 'walk-right', feedback: '走两步～' });
@@ -146,8 +152,36 @@ async function main() {
     await page.setViewportSize({ width: 176, height: 176 });
     await emit({ kind: 'interaction-reply', feedback: '今天的小挑战：给自己找一个值得开心的小理由。' });
     await page.screenshot({ path: path.join(qa, 'interaction-bubble.png') });
+    await page.evaluate(() => { window.externalBubble = []; window.petAPI.window.showFeedback = async (text) => { window.externalBubble.push(text); }; });
+    await emit({ kind: 'notify', stateId: 'notify', feedback: '头顶气泡'.repeat(25) });
+    assert.equal(await page.locator('#feedback-bubble').evaluate((el) => el.classList.contains('show')), false, 'desktop uses independent overlay, not an in-pet bubble');
+    assert.equal(await page.evaluate(() => window.externalBubble.at(-1)), '头顶气泡'.repeat(25), 'IPC receives complete unscaled text');
+    await emit({ kind: 'interaction', stateId: 'sleep', durationMs: 15000 });
+    const sleepingFrame = (await pose()).frame;
+    assert.equal(await page.locator('#pet-sprite').evaluate(el => el.classList.contains('breathing')), true);
+    assert.equal(await page.locator('#pet-sprite').evaluate(el => getComputedStyle(el).animationDuration), '3.2s');
+    await page.clock.runFor(2200);
+    assert.equal((await pose()).state, 'sleep');
+    assert.equal((await pose()).frame, sleepingFrame, 'each sleep pose remains for 2.5 seconds');
+    const sleepingFrames = new Set([sleepingFrame]);
+    for (let i = 0; i < 5; i++) {
+      await page.clock.runFor(2500);
+      sleepingFrames.add((await pose()).frame);
+    }
+    assert.equal(sleepingFrames.size, 6, 'all six original sleep poses are preserved');
+    await emit({ kind: 'interaction', stateId: 'walk-right', durationMs: 2500 });
+    assert.equal(await page.locator('#pet-sprite').evaluate(el => el.classList.contains('breathing')), false,
+      'breathing must not stretch a walking pose');
+    const stepFrames = new Set();
+    for (let i = 0; i < 10; i++) {
+      stepFrames.add((await pose()).frame);
+      await page.clock.runFor(145);
+    }
+    assert.equal(stepFrames.size, 5, 'walk uses the five approved moving poses');
+    await emit({ kind: 'interaction', stateId: 'eat', durationMs: 1800 });
+    assert.equal(await page.locator('#pet-sprite').evaluate(el => el.classList.contains('breathing')), false);
     assert.deepEqual(errors, []);
-    console.log('Pet UI: PASS (jump/landing, repeated clicks, bubble timer/wrapping, stale AI, drag and six sizes; mock IPC only).');
+    console.log('Pet UI: PASS (jump/landing, dragging and six sizes, stable sleeping/breathing, five walking poses, bubble timer/wrapping and stale AI; mock IPC only).');
   } finally {
     if (application) await application.close();
     await rm(directory, { recursive: true, force: true });
