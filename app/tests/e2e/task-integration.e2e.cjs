@@ -73,7 +73,9 @@ async function main() {
       definitions[`${role.toUpperCase()}_WINDOW_PRELOAD_WEBPACK_ENTRY`] = JSON.stringify(path.join(directory, 'preload.cjs'));
     }));
     await Promise.all([
-      compile({ ...require('../../webpack.main.config.js'), mode: 'development', context: root, output: { path: directory, filename: 'main.cjs', publicPath: directory.replace(/\\/g, '/') + '/' }, plugins: [new webpack.DefinePlugin(definitions), new webpack.NormalModuleReplacementPlugin(/task-list-public\.json$/, fixture)] }),
+      compile({ ...require('../../webpack.main.config.js'), mode: 'development', context: root, output: { path: directory, filename: 'main.cjs', publicPath: directory.replace(/\\/g, '/') + '/' }, plugins: [
+        new webpack.BannerPlugin({ raw: true, banner: `(()=>{const originalFetch=globalThis.fetch.bind(globalThis);globalThis.fetch=async(input,init)=>{const value=typeof input==='string'?input:input.url;const url=new URL(value);if(['www.ithome.com','www.solidot.org','openai.com','www.cnbc.com','www.federalreserve.gov','www.ecb.europa.eu','www.un.org'].includes(url.hostname)){const now=new Date().toUTCString();return new Response('<rss><channel>'+[0,1,2].map(i=>'<item><title>'+url.hostname+' 测试新闻 '+i+'</title><link>https://'+url.hostname+'/test/article-'+i+'</link><description>本地模拟摘要 '+i+'</description><pubDate>'+now+'</pubDate></item>').join('')+'</channel></rss>',{headers:{'Content-Type':'application/rss+xml'}})}if(['127.0.0.1','localhost','[::1]'].includes(url.hostname))return originalFetch(input,init);throw new Error('E2E external network blocked: '+url.hostname)}})();` }),
+        new webpack.DefinePlugin(definitions), new webpack.NormalModuleReplacementPlugin(/task-list-public\.json$/, fixture)] }),
       compile({ mode: 'development', context: root, target: 'electron-preload', entry: path.join(root, 'src/preload.ts'), output: { path: directory, filename: 'preload.cjs' }, module: { rules: [{ test: /\.ts$/, exclude: /node_modules/, use: 'ts-loader' }] }, resolve: { extensions: ['.ts', '.js'] } }),
     ]);
     const env = { ...process.env, PET_E2E: '1', PET_E2E_USER_DATA: path.join(directory, 'profile') }; delete env.ELECTRON_RUN_AS_NODE;
@@ -95,7 +97,10 @@ async function main() {
     const initial = await pet.evaluate(() => window.__petE2E.snapshot());
     assert.equal(initial.roles.length, 3); assert.equal(initial.tray, true);
     assert.equal(await pet.evaluate(() => window.petAPI.taskList.status().then(() => false, () => true)), true, 'pet has no task credential IPC access');
+    assert.equal(await pet.evaluate(() => window.petAPI.news.status().then(() => false, () => true)), true, 'main denies pet-role news IPC access');
     assert.equal((await dashboard.evaluate(() => window.petAPI.taskList.status())).connected, false);
+    assert.deepEqual(await dashboard.evaluate(() => window.petAPI.news.status().then(value => value.preferences)), { enabled: false, time: '09:00' }, 'daily news push is disabled by default');
+    assert.equal(await dashboard.evaluate(() => window.petAPI.news.open('https://evil.example/article').then(() => false, () => true)), true, 'news links reject untrusted hosts');
 
     await pet.locator('#pet-container').dispatchEvent('dblclick');
     await dashboard.waitForFunction(() => document.body.classList.contains('quick-chat'));
@@ -130,6 +135,33 @@ async function main() {
     await sendChat('结束计时');
     await sendChat('每天下午三点提醒我喝水');
     assert.equal((await dashboard.evaluate(() => window.petAPI.reminders.list())).length, 1);
+
+    await dashboard.evaluate(() => window.petAPI.chat.clear());
+    await application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((item) => item.webContents.getURL().includes('/dashboard_window/'));
+      window.setSize(600, 1000);
+    });
+    const newsDigest = await sendChat('今天有什么AI新闻');
+    assert.match(await newsDigest.textContent(), /AI新闻|北京时间/);
+    assert.equal(await newsDigest.locator('.chat-card.card-news').count(), 3);
+    assert.equal(await newsDigest.locator('.news-source-link').count(), 3);
+    await dashboard.locator('#chat-messages').evaluate(node => { node.scrollTop = node.scrollHeight; });
+    await dashboard.screenshot({ path: path.join(root, 'qa/news-briefing.png') });
+    const firstNewsTitle = await newsDigest.locator('.chat-card.card-news strong').first().textContent();
+    await newsDigest.getByRole('button', { name: '摘要与解读' }).first().click();
+    await dashboard.waitForFunction(() => document.querySelectorAll('.chat-msg.from-pet').length > 0 && document.querySelector('#chat-messages').textContent.includes('订阅源摘要'));
+    assert.ok((await dashboard.locator('.chat-msg.from-pet').last().textContent()).includes(firstNewsTitle.slice(3)), 'summary action retains the selected news item');
+    const newsFollowup = await sendChat('第二条新闻详细讲讲'); assert.match(await newsFollowup.textContent(), /OpenAI 官方|订阅源摘要/);
+    await application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((item) => item.webContents.getURL().includes('/dashboard_window/'));
+      window.setSize(500, 660);
+    });
+    const newsHistory = await dashboard.evaluate(() => window.petAPI.chat.history());
+    assert.ok(newsHistory.some(message => message.source === 'news' && message.cards?.some(card => card.kind === 'news' && card.url?.startsWith('https://openai.com/'))));
+    assert.ok(newsHistory.filter(message => message.source === 'news').every(message => !message.cards || message.cards.every(card => !card.actions?.length)));
+    await dashboard.evaluate(() => window.petAPI.news.configure({ enabled: true, time: '08:45' }));
+    assert.deepEqual(await dashboard.evaluate(() => window.petAPI.news.status().then(value => value.preferences)), { enabled: true, time: '08:45' });
+    await dashboard.evaluate(() => window.petAPI.news.configure({ enabled: false, time: '08:45' }));
 
     await dashboard.evaluate(() => window.petAPI.taskList.login({ username: 'fixture', password: 'test-only', remember: false }));
     const queryReply = await sendChat('今天有哪些任务'); assert.equal(await queryReply.locator('.chat-card').count(), 2);
