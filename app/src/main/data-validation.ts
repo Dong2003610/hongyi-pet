@@ -122,13 +122,14 @@ export function parseChatHistory(value: unknown): ChatMessage[] {
     for (const value of Array.isArray(obj.cards) ? obj.cards.slice(0, 8) : []) {
       if (!value || typeof value !== 'object') continue;
       const card = value as Record<string, unknown>;
-      if (!['task', 'choice', 'preview', 'focus', 'reminder', 'error'].includes(String(card.kind)) || typeof card.title !== 'string' || card.title.length > 500) continue;
+      if (!['task', 'choice', 'preview', 'focus', 'reminder', 'error', 'news'].includes(String(card.kind)) || typeof card.title !== 'string' || card.title.length > 500) continue;
       cards.push({ kind: card.kind as NonNullable<ChatMessage['cards']>[number]['kind'], title: card.title,
         ...(typeof card.detail === 'string' ? { detail: card.detail.slice(0, 35000) } : {}),
         ...(typeof card.taskId === 'string' ? { taskId: card.taskId } : {}),
+        ...(card.kind === 'news' && typeof card.url === 'string' && card.url.length <= 2000 && /^https:\/\//.test(card.url) ? { url: card.url } : {}),
         ...(['saved', 'pending', 'failed'].includes(String(card.state)) ? { state: card.state as 'saved' | 'pending' | 'failed' } : {}) });
     }
-    return { role: obj.role, content: obj.content, ...(['chat', 'task', 'reminder'].includes(String(obj.source)) ? { source: obj.source as ChatMessage['source'] } : {}),
+    return { role: obj.role, content: obj.content, ...(['chat', 'task', 'reminder', 'news'].includes(String(obj.source)) ? { source: obj.source as ChatMessage['source'] } : {}),
       ...(typeof obj.accountId === 'string' && (obj.accountId === 'local' || /^[0-9a-f-]{36}$/i.test(obj.accountId)) ? { accountId: obj.accountId } : {}), ...(cards.length ? { cards } : {}) };
   });
 }
