@@ -39,6 +39,8 @@ for (const state of spec.states ?? []) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(state.id ?? '')) errors.push(`invalid state id: ${state.id}`);
   if (states.has(state.id)) errors.push(`duplicate state id: ${state.id}`);
   states.set(state.id, state);
+  if (state.proceduralMotion !== undefined && (state.proceduralMotion !== 'breathing' || !spec.motion?.breathing?.enabled || !state.loop))
+    errors.push(`state ${state.id} has invalid procedural breathing`);
   if (!Array.isArray(state.frames) || state.frames.length < 1) errors.push(`state has no frames: ${state.id}`);
   for (const frame of state.frames ?? []) {
     if (typeof frame !== 'string' || /^[A-Za-z]:|^[/\\]|(?:^|[/\\])\.\.(?:[/\\]|$)/.test(frame)) errors.push(`unsafe frame path: ${frame}`);
@@ -73,7 +75,8 @@ for (const [id, interaction] of interactions) {
   const state = states.get(interaction.stateId);
   if (!state) errors.push(`interaction ${id} references missing state ${interaction.stateId}`);
   if (!triggers.has(`interaction:${id}`)) errors.push(`interaction ${id} has no runtime trigger`);
-  if (state && (state.frames.length < 5 || state.frames.length > 6)) errors.push(`interaction state ${state.id} must have 5-6 frames`);
+  if (state && (state.frames.length < (state.proceduralMotion === 'breathing' ? 1 : 2) || state.frames.length > 8))
+    errors.push(`interaction state ${state.id} requires 2-8 poses, or a declared breathing loop`);
   if (state && interaction.durationMs < state.frames.length * state.frameDurationMs) errors.push(`interaction ${id} duration must cover one full animation cycle`);
 }
 const blink = states.get(triggers.get('ambient:blink'));
@@ -86,7 +89,7 @@ for (const trigger of ['pointer:tap', 'reminder:due', 'window:edge-snap', 'ambie
 }
 for (const trigger of ['movement:left', 'movement:right']) {
   const state = states.get(triggers.get(trigger));
-  if (state && (state.frames.length < 6 || state.frames.length > 8)) errors.push(`${trigger} state ${state.id} must have 6-8 frames`);
+  if (state && (state.frames.length < 4 || state.frames.length > 8)) errors.push(`${trigger} state ${state.id} must have 4-8 walking poses`);
 }
 if ([...states.values()].some((state) => state.frames.includes(spec.character?.coreAsset))) errors.push('character.coreAsset must be an independent identity master, not a runtime animation frame');
 
