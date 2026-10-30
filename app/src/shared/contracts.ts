@@ -99,6 +99,7 @@ export interface PetState {
   direction: string;
   anchor: { x: number; y: number };
   mirrorSafe: boolean;
+  proceduralMotion?: 'breathing';
 }
 
 export interface PetStats {
@@ -131,11 +132,91 @@ export interface Reminder {
   dueAt: string;
   createdAt: string;
   repeat: ReminderRepeat;
+  source?: 'local' | 'task';
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  source?: 'chat' | 'task' | 'reminder';
+  cards?: ChatCard[];
+  activeTaskName?: string | null;
+  accountId?: string;
+}
+
+export interface ChatCard {
+  kind: 'task' | 'choice' | 'preview' | 'focus' | 'reminder' | 'error';
+  title: string;
+  detail?: string;
+  taskId?: string;
+  state?: 'saved' | 'pending' | 'failed';
+  actions?: Array<{ id: string; label: string }>;
+}
+
+export type TaskListView = 'today' | 'pending' | 'week';
+
+export interface TaskListStatus {
+  connected: boolean;
+  username?: string;
+  remembered: boolean;
+  canRemember: boolean;
+}
+
+export interface LinkedTask {
+  id: string;
+  name: string;
+  priority: 'high' | 'medium' | 'low';
+  completed: boolean;
+  createdAt: string;
+  reminderAt: string | null;
+  elapsedSeconds?: number;
+  updatedAt?: string;
+  sortOrder?: number | null;
+  completedAt?: string | null;
+}
+
+export type TaskListKind = 'daily' | 'weekly';
+export interface TaskListCreateInput {
+  id: string;
+  kind: TaskListKind;
+  name: string;
+  priority: LinkedTask['priority'];
+  date: string;
+  reminderAt?: string | null;
+}
+export interface TaskListUpdateInput {
+  id: string;
+  kind: TaskListKind;
+  expectedUpdatedAt?: string;
+  patch: { name?: string; priority?: LinkedTask['priority']; completed?: boolean; reminderAt?: string | null; date?: string };
+}
+
+export interface TaskCompanionPreferences {
+  reminders: boolean;
+  morning: boolean;
+  morningTime: string;
+  evening: boolean;
+  eveningTime: string;
+  quiet: boolean;
+  quietStart: string;
+  quietEnd: string;
+}
+export interface TaskFocusStatus {
+  phase: 'idle' | 'running' | 'paused';
+  taskId?: string;
+  name?: string;
+  seconds: number;
+  remaining: number;
+  error?: string;
+  free?: boolean;
+  roundSeconds?: number;
+}
+
+export interface TaskListSnapshot {
+  view: TaskListView;
+  date: string;
+  fetchedAt: string;
+  items: LinkedTask[];
 }
 
 export interface StateActivity {
@@ -184,8 +265,9 @@ export interface PetAPI {
   };
   reminders: {
     list: () => Promise<Reminder[]>;
+    feed: () => Promise<{ items: Reminder[]; error?: string }>;
     save: (input: { text: string; dueAt: string; repeat?: ReminderRepeat }) => Promise<Reminder>;
-    remove: (id: string) => Promise<boolean>;
+    remove: (id: string, source?: 'local' | 'task') => Promise<boolean>;
     snooze: (id: string, minutes: number) => Promise<Reminder | undefined>;
   };
   interactions: {
@@ -197,9 +279,30 @@ export interface PetAPI {
     send: (text: string) => Promise<string>;
     history: () => Promise<ChatMessage[]>;
     clear: () => Promise<void>;
+    turn: (text: string) => Promise<ChatMessage>;
+    act: (id: string) => Promise<ChatMessage>;
   };
   ai: {
     status: () => Promise<boolean>;
+    configuration: () => Promise<{ baseUrl: string; model: string; city: string; configured: boolean }>;
+    configure: (input: { baseUrl: string; model: string; apiKey?: string; city?: string }) => Promise<void>;
+    test: () => Promise<void>;
+  };
+  taskList: {
+    status: () => Promise<TaskListStatus>;
+    login: (input: { username: string; password: string; remember: boolean }) => Promise<TaskListStatus>;
+    logout: () => Promise<TaskListStatus>;
+    list: (view: TaskListView) => Promise<TaskListSnapshot>;
+    create: (input: TaskListCreateInput) => Promise<LinkedTask>;
+    update: (input: TaskListUpdateInput) => Promise<LinkedTask>;
+    openWebsite: () => Promise<void>;
+    companion: () => Promise<{ preferences: TaskCompanionPreferences; focus: TaskFocusStatus; error?: string }>;
+    configure: (input: TaskCompanionPreferences) => Promise<TaskCompanionPreferences>;
+    focus: (input: { action: 'start' | 'pause' | 'resume' | 'stop' | 'retry'; id?: string; minutes?: number }) => Promise<TaskFocusStatus>;
+    briefing: (kind: 'morning' | 'evening') => Promise<string>;
+    plan: (input: { goal: string; date: string }) => Promise<{ ai: boolean; items: TaskListCreateInput[] }>;
+    rollover: (date: string) => Promise<TaskListCreateInput[]>;
+    select: (input: { id: string; kind: TaskListKind }) => Promise<void>;
   };
   pomodoro: {
     start: () => Promise<{ phase: string; endsAt: number }>;
@@ -221,6 +324,8 @@ export interface PetAPI {
     showContextMenu: () => Promise<void>;
     showReminder: () => Promise<void>;
     showDashboard: () => Promise<void>;
+    showQuickChat: () => Promise<void>;
+    showFeedback: (text: string) => Promise<void>;
     hideReminder: () => Promise<void>;
     hideDashboard: () => Promise<void>;
     hidePet: () => Promise<void>;
@@ -234,6 +339,8 @@ export interface PetAPI {
     onReminder: (listener: (reminder: Reminder) => void) => () => void;
     onReminderCompose: (listener: () => void) => () => void;
     onRemindersUpdated: (listener: () => void) => () => void;
+    onTaskListUpdated: (listener: () => void) => () => void;
+    onDashboardMode: (listener: (mode: 'quick' | 'full') => void) => () => void;
     onStats: (listener: (stats: PetStats) => void) => () => void;
     onTypingStatus: (listener: (status: TypingStatus) => void) => () => void;
     onDisplayName: (listener: (name: string) => void) => () => void;
