@@ -92,8 +92,9 @@
   <div id="dashboard">
     <div class="card">
       <div id="drag-area"></div>
-      <button class="close-btn" id="close-btn">×</button>
-      <div class="header">
+      <button class="close-btn" id="close-btn" type="button" aria-label="关闭窗口" title="关闭窗口">×</button>
+      <button class="action-btn" id="quick-open-house" type="button">打开小屋 ↗</button>
+      <div class="header"><div class="header-tools"><button type="button" class="icon-button" data-open-nav="interact" aria-label="陪伴与互动">♡</button><button type="button" class="icon-button" data-open-nav="settings" aria-label="设置">⚙</button></div>
         <div class="pet-avatar"><img id="pet-avatar-img" alt="avatar"></div>
         <div class="pet-info">
           <h2 id="pet-name" title="点击编辑名字">桌宠</h2>
@@ -122,18 +123,16 @@
       </div>
 
       <div class="tab-bar" id="tab-bar">
-        <button class="tab-btn" data-tab="chat">💬 聊天</button>
-        <button class="tab-btn" data-tab="interact">✨ 互动</button>
-        <button class="tab-btn" data-tab="reminder">⏰ 提醒</button>
-        <button class="tab-btn" data-tab="settings">⚙️ 设置</button>
+        <button class="tab-btn" data-tab="chat">💬 对话</button>
+        <button class="tab-btn" data-tab="tasks">✓ 今天</button>
       </div>
 
       <div class="tab-panels">
         <div class="tab-panel active" id="panel-chat">
           <div class="chat-area">
-            <div class="chat-messages" id="chat-messages"></div>
+            <p id="chat-selection" class="chat-selection" hidden></p><div class="chat-messages" id="chat-messages" role="log" aria-live="polite"></div><div class="chat-suggestions"><button type="button" data-chat-prompt="今天有哪些任务">今天做什么</button><button type="button" data-chat-prompt="自由专注25分钟">专注一会儿</button><button type="button" data-chat-prompt="总结一下今天">回顾今天</button></div>
             <div class="chat-input-row">
-              <input class="chat-input" id="chat-input" placeholder="说点什么…（Enter 发送）" maxlength="500">
+              <input class="chat-input" id="chat-input" placeholder="聊天、记事，或告诉我想做什么…" maxlength="500">
               <button class="chat-send" id="chat-send">发送</button>
             </div>
             <div class="ai-hint-row">
@@ -143,20 +142,20 @@
           </div>
         </div>
 
-        <div class="tab-panel" id="panel-interact">
+        <div class="tab-panel" id="panel-interact"><button type="button" class="back-button" data-open-nav="chat">← 回到对话</button>
           <div class="settings-group">
             <div class="section-title">✨ 互动</div>
             <div class="interactions" id="interactions-list"></div>
           </div>
           <div class="settings-group">
-            <div class="section-title">🍅 番茄钟</div>
-            <div class="pomodoro-bar" id="pomodoro-bar">
+            <div class="section-title">专注</div>
+            <div hidden class="pomodoro-bar" id="pomodoro-bar">
               <span id="pomodoro-status">未开始</span>
               <span class="timer" id="pomodoro-timer"></span>
               <button class="pomodoro-btn pomodoro-start" id="pomodoro-start-btn">开始专注</button>
               <button class="pomodoro-btn pomodoro-stop" id="pomodoro-stop-btn" style="display:none;">停止</button>
             </div>
-            <div class="pomodoro-config">
+            <div hidden class="pomodoro-config">
               <label>专注 <input id="pomodoro-work-min" type="number" min="5" max="180" step="1"> 分钟</label>
               <label>休息 <input id="pomodoro-break-min" type="number" min="1" max="60" step="1"> 分钟</label>
             </div>
@@ -165,7 +164,7 @@
 
         <div class="tab-panel" id="panel-reminder">
           <div class="settings-group" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-            <div class="section-title">⏰ 提醒</div>
+            <div class="section-title">接下来的提醒</div><p class="task-hint">单次提醒随账号同步；每天、工作日提醒保存在本机。时间均为北京时间。</p>
             <div class="reminder-row">
               <input id="reminder-text" placeholder="提醒内容…">
               <input id="reminder-time" type="datetime-local">
@@ -180,7 +179,47 @@
           </div>
         </div>
 
-        <div class="tab-panel" id="panel-settings">
+        <div class="tab-panel" id="panel-tasks"><div id="task-companion"></div>
+          <div class="task-heading">
+            <div class="section-title">今天，先做好一件事</div>
+            <div class="task-entry-actions"><button class="action-btn" id="task-open-website" type="button">完整清单 ↗</button><button class="action-btn" id="task-account-button" type="button">连接账号</button></div>
+          </div>
+          <p class="task-hint">任务与网页同步。点选一项，或直接和我说。</p>
+          <p id="task-message" class="task-message" role="status" aria-live="polite"></p>
+          <p id="task-disconnected" class="task-empty">点击右上角“连接账号”，登录原清单账号即可同步。</p>
+          <dialog id="task-account-dialog" aria-labelledby="task-account-title">
+            <div class="task-heading"><h3 id="task-account-title">连接清单账号</h3><button class="action-btn" id="task-account-close" type="button" aria-label="关闭账号窗口">✕</button></div>
+            <p id="task-account-message" class="task-message" role="status" aria-live="polite"></p>
+            <form id="task-login-form" class="task-login">
+            <label for="task-username">原清单用户名</label>
+            <input id="task-username" autocomplete="username" maxlength="100" required placeholder="与网页版一致">
+            <label for="task-password">密码</label>
+            <input id="task-password" type="password" autocomplete="current-password" maxlength="1000" required>
+            <label class="task-remember"><input id="task-remember" type="checkbox" checked> 记住登录（本机加密）</label>
+            <button id="task-login-button" class="chat-send" type="submit">连接清单</button>
+            </form>
+            <div id="task-account-connected" hidden><p id="task-account-name" class="task-hint"></p><button id="task-logout" class="action-btn" type="button">退出登录</button></div>
+          </dialog>
+          <div id="task-connected" hidden>
+            <div class="task-toolbar">
+              <label for="task-view">查看</label>
+              <select id="task-view"><option value="today">今日任务</option><option value="pending">全部未完成</option></select>
+              <button id="task-refresh" class="action-btn" type="button">刷新</button>
+            </div>
+            <details class="task-manual-create"><summary>手动添加任务</summary><form id="task-create-form" class="task-create">
+              <input id="task-create-name" aria-label="新任务名称" placeholder="记一项任务…" maxlength="500" required>
+              <div class="task-create-options"><input id="task-create-date" aria-label="任务日期" type="date" required><select id="task-create-priority" aria-label="任务优先级"><option value="medium">中优先级</option><option value="high">高优先级</option><option value="low">低优先级</option></select><button class="chat-send" id="task-create-button" type="submit">添加任务</button></div>
+              <label id="task-create-reminder-label" class="task-hint">可选到点提醒（北京时间）<input id="task-create-reminder" type="datetime-local" aria-label="新任务提醒时间（北京时间）"></label>
+            </form></details>
+            <p id="task-summary" class="task-summary"></p>
+            <p id="task-updated" class="task-hint"></p>
+            <ul id="task-items" class="task-items" aria-label="任务列表"></ul>
+
+            <p class="task-hint">日期按北京时间计算。网页的更改可点击刷新同步；勾选完成和编辑会直接保存到同一份清单。</p>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="panel-settings"><button type="button" class="back-button" data-open-nav="chat">← 回到对话</button><div class="settings-group ai-settings"><div class="section-title">AI 聊天</div><form id="ai-config-form"><label>服务地址<input id="ai-base-url" type="url" required></label><label>模型<input id="ai-model" required maxlength="150"></label><label>API Key<input id="ai-api-key" type="password" autocomplete="off" placeholder="已配置时留空沿用" maxlength="2000"></label><label>天气城市<input id="ai-city" maxlength="50"></label><div class="task-tool-buttons"><button type="submit">保存</button><button id="ai-test" type="button">测试连接</button></div><p id="ai-config-message" role="status"></p></form></div><div id="companion-settings"></div>
           <div class="settings-group">
             <div class="setting-item">
               <div><div class="setting-label">置顶显示</div><div class="setting-desc">桌宠窗口始终在最前面</div></div>
