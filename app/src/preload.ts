@@ -8,6 +8,11 @@ function subscribe<T>(channel: string, listener: (value: T) => void): () => void
 }
 
 const api: PetAPI = {
+  news: {
+    status: () => ipcRenderer.invoke('news:status'),
+    configure: (input) => ipcRenderer.invoke('news:configure', input),
+    open: (url) => ipcRenderer.invoke('news:open', url),
+  },
   settings: {
     get: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
     update: (patch) => ipcRenderer.invoke('settings:update', patch) as Promise<Settings>,
@@ -84,6 +89,7 @@ const api: PetAPI = {
     fail: (report: RuntimeFailureReport) => ipcRenderer.invoke('runtime:fail', report) as Promise<void>,
   },
   events: {
+    onNews: (listener) => subscribe<ChatMessage>('news:briefing', listener),
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),
     onReminder: (listener) => subscribe<Reminder>('reminder:due', listener),
     onReminderCompose: (listener) => subscribe<void>('reminder:compose', listener),
