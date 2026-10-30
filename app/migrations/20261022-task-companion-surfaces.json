@@ -1,0 +1,49 @@
+{
+  "id": "20261022-task-companion-surfaces",
+  "description": "User-authorized remaining task-list features (reminders, task focus, scheduled briefing, confirmed goal breakdown and rollover, celebration), independent readable head-top bubble and double-click compact chat reusing dashboard. Explicit source entry migration only; preserve protected build/preflight tools, package manifests and contract version.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "8bd28c3a3a703d2f88efd1908518da5d04a13289c5cc2fda6d8c6fc3a3d04b82",
+      "to": "3d0aed362640396520b1435c5f95965cb520900d86a487a162e66b944e9fe96f"
+    },
+    {
+      "file": "src/main.ts",
+      "from": "6b5dbc65ed5252de0910a1416c72cdc87ea77cd15ae3b1c11c3e7cad352156bb",
+      "to": "8dabc099adeca812898e91b6bbeb79a91a948be1d711ebeebaaf3baae4525791"
+    },
+    {
+      "file": "src/preload.ts",
+      "from": "bc1674adf9807bdf7986a05bd62467a579129255b1294256ca4958bac8451d4b",
+      "to": "f8bafaf63bb56085795f5b4422a17365db5aa067565276522876a84f26d0bc45"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "df55d4cdd67cb5dab47c30067d70d4764de37b3c0b543d542ed22587725a2d9c",
+      "to": "bae002be288606b39351c7b68ca544c0b2b6b581903a8d2717e54f503a3205ca"
+    },
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "f9099bccfb55537a3acdbf7e6d9dc10378da9363a8b1b710226d904dd06fa54c",
+      "to": "9bc2bf3fb9f3b68276041bc8c15eebabe2d8902e65a1fe3969ebc08c001535b4"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "b7e6c007ab946c1b99d190608b8a639da2a1eea957d27a318290c875d30866b5",
+      "to": "61a0b00faf77700aaea4c1a1b87673640c954265ec4d7e7db5dabea64c8dac32"
+    }
+  ],
+  "validation": [
+    "npx tsc --noEmit",
+    "npm test",
+    "npx tsx --test tests/unit/task-list.test.ts tests/unit/task-list-write.test.ts tests/unit/task-companion.test.ts",
+    "node tests/e2e/task-list.e2e.cjs",
+    "node tests/e2e/pet-interaction.e2e.cjs",
+    "node tests/e2e/pet-surfaces.e2e.cjs",
+    "node tests/e2e/task-integration.e2e.cjs",
+    "node tools/preflight.mjs",
+    "node tools/validate-dev-contract.mjs"
+  ]
+}
