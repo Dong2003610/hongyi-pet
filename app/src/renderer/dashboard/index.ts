@@ -2,6 +2,7 @@ import spec from '../../../pet-spec.json';
 import type { ChatMessage, PetSpec, PetStats, Settings, InteractionSpec, Reminder, ReminderRepeat } from '../../shared/contracts';
 import './index.css';
 import { setupTaskList } from './task-list';
+import { setupNews } from './news';
 
 const petSpec = spec as PetSpec;
 document.title = `${petSpec.character.displayName}的小屋`;
@@ -149,6 +150,11 @@ function appendChat(role: string, text: string, message?: ChatMessage, restored 
       const item = document.createElement('article'); item.className = `chat-card card-${card.kind}`;
       const title = document.createElement('strong'); title.textContent = `${message.cards!.length > 1 ? `${index + 1}. ` : ''}${card.title}`;
       const detail = document.createElement('p'); detail.textContent = card.detail ?? ''; item.append(title, detail);
+      if (card.kind === 'news' && card.url && window.petAPI?.news) {
+        const link = document.createElement('button'); link.type = 'button'; link.className = 'news-source-link'; link.textContent = '查看原文 ↗';
+        link.addEventListener('click', () => void window.petAPI!.news!.open(card.url!).catch(() => { link.textContent = '链接打开失败，请稍后重试'; }));
+        item.append(link);
+      }
       if (card.state === 'failed') item.classList.add('has-error');
       if (!restored && card.actions?.length) {
         const actions = document.createElement('div'); actions.className = 'chat-card-actions';
@@ -485,6 +491,7 @@ document.getElementById('ai-test')!.addEventListener('click', async () => {
 
 // ── Init ──
 async function init(): Promise<void> {
+  setupNews();
   activateTab('chat');
   await loadChatHistory();
   await loadDisplayName();
@@ -503,3 +510,4 @@ async function init(): Promise<void> {
 }
 
 init();
+window.petAPI?.events.onNews?.((message) => appendChat('pet', message.content, message));
