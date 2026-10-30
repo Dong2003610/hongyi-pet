@@ -138,19 +138,26 @@ export interface Reminder {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  source?: 'chat' | 'task' | 'reminder';
+  source?: 'chat' | 'task' | 'reminder' | 'news';
   cards?: ChatCard[];
   activeTaskName?: string | null;
   accountId?: string;
 }
 
 export interface ChatCard {
-  kind: 'task' | 'choice' | 'preview' | 'focus' | 'reminder' | 'error';
+  kind: 'task' | 'choice' | 'preview' | 'focus' | 'reminder' | 'error' | 'news';
   title: string;
   detail?: string;
   taskId?: string;
+  url?: string;
   state?: 'saved' | 'pending' | 'failed';
   actions?: Array<{ id: string; label: string }>;
+}
+
+export interface NewsPreferences { enabled: boolean; time: string }
+export interface NewsStatus {
+  preferences: NewsPreferences; fetchedAt?: string; failures: string[];
+  sources: Array<{ name: string; official: boolean }>;
 }
 
 export type TaskListView = 'today' | 'pending' | 'week';
@@ -259,6 +266,11 @@ export interface TypingStatus {
 }
 
 export interface PetAPI {
+  news?: {
+    status: () => Promise<NewsStatus>;
+    configure: (input: NewsPreferences) => Promise<NewsPreferences>;
+    open: (url: string) => Promise<void>;
+  };
   settings: {
     get: () => Promise<Settings>;
     update: (patch: Partial<Settings>) => Promise<Settings>;
@@ -335,6 +347,7 @@ export interface PetAPI {
     fail: (report: RuntimeFailureReport) => Promise<void>;
   };
   events: {
+    onNews?: (listener: (message: ChatMessage) => void) => () => void;
     onStateActivity: (listener: (activity: StateActivity) => void) => () => void;
     onReminder: (listener: (reminder: Reminder) => void) => () => void;
     onReminderCompose: (listener: () => void) => () => void;
