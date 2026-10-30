@@ -1,0 +1,20 @@
+{
+  "id": "20261030-sleep-original-poses",
+  "description": "User requested restoring all six original sleeping images and only slowing pose changes. Sleep PNGs are byte-identical to archived originals, sleep switches every 2500ms, and interaction duration is 15000ms to show all six poses. Other animation cleanup is retained.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "pet-spec.json",
+      "from": "b29ea79a69907a8906cc3e415169266b715be7dacd936b16c96070397f6885ee",
+      "to": "c86c3c099bd4819719fc6c019b411d84ce010c02440323bd04d396125a0f0961"
+    }
+  ],
+  "validation": [
+    "Original sleep PNG byte equality",
+    "Six sleep poses held 2500ms each; returns idle at 15000ms",
+    "tsc --noEmit",
+    "node tests/e2e/pet-interaction.e2e.cjs",
+    "node tools/preflight.mjs"
+  ]
+}
