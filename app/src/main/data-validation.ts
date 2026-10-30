@@ -112,13 +112,24 @@ export function parseReminders(value: unknown): Reminder[] {
 
 export function parseChatHistory(value: unknown): ChatMessage[] {
   if (!Array.isArray(value)) throw new TypeError('Invalid chat history');
-  return value.slice(-40).map((item) => {
+  return value.slice(-80).map((item) => {
     const obj = record(item, 'chat message');
     if (obj.role !== 'user' && obj.role !== 'assistant') throw new TypeError('Invalid chat message role');
-    if (typeof obj.content !== 'string' || obj.content.length < 1 || obj.content.length > 2000) {
+    if (typeof obj.content !== 'string' || obj.content.length < 1 || obj.content.length > 40000) {
       throw new TypeError('Invalid chat message content');
     }
-    return { role: obj.role, content: obj.content };
+    const cards: NonNullable<ChatMessage['cards']> = [];
+    for (const value of Array.isArray(obj.cards) ? obj.cards.slice(0, 8) : []) {
+      if (!value || typeof value !== 'object') continue;
+      const card = value as Record<string, unknown>;
+      if (!['task', 'choice', 'preview', 'focus', 'reminder', 'error'].includes(String(card.kind)) || typeof card.title !== 'string' || card.title.length > 500) continue;
+      cards.push({ kind: card.kind as NonNullable<ChatMessage['cards']>[number]['kind'], title: card.title,
+        ...(typeof card.detail === 'string' ? { detail: card.detail.slice(0, 35000) } : {}),
+        ...(typeof card.taskId === 'string' ? { taskId: card.taskId } : {}),
+        ...(['saved', 'pending', 'failed'].includes(String(card.state)) ? { state: card.state as 'saved' | 'pending' | 'failed' } : {}) });
+    }
+    return { role: obj.role, content: obj.content, ...(['chat', 'task', 'reminder'].includes(String(obj.source)) ? { source: obj.source as ChatMessage['source'] } : {}),
+      ...(typeof obj.accountId === 'string' && (obj.accountId === 'local' || /^[0-9a-f-]{36}$/i.test(obj.accountId)) ? { accountId: obj.accountId } : {}), ...(cards.length ? { cards } : {}) };
   });
 }
 
@@ -131,10 +142,10 @@ export function nextRepeatDueAt(dueAt: string, repeat: ReminderRepeat, now = Dat
   const due = new Date(dueAt);
   if (!Number.isFinite(due.getTime())) return new Date(now + 60_000).toISOString();
   for (let guard = 0; guard < 800; guard += 1) {
-    due.setDate(due.getDate() + 1);
+    due.setTime(due.getTime() + 86400_000);
     if (due.getTime() <= now) continue;
     if (repeat === 'weekdays') {
-      const day = due.getDay();
+      const day = new Date(due.getTime() + 8 * 3600_000).getUTCDay();
       if (day === 0 || day === 6) continue;
     }
     break;
