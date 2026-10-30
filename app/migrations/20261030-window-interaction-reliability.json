@@ -1,0 +1,27 @@
+{
+  "id": "20261030-window-interaction-reliability",
+  "description": "User-authorized quick chat close-button repair and product self-check: accessible close controls, chat draft recovery and serialized clear controls, stable history loading, unsaved companion settings and keyboard focus preservation, truthful AI configuration wording. Source-only upgrade; build tooling and contract versions unchanged.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "7ba4a63adc5af387fa256182f556bf2eb3c3c7da9424b70221cd9542298178c7",
+      "to": "2d628ad6ed2c504cd507d45c83c88755c18c21340260c26e72b3945f12d32bb5"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "605cf478edd84e8e4002ec1b9aaba7147421719fd5a56651556a3a794f814a3c",
+      "to": "4374c0f538fae1f10c837f519ddd9c97ff952ed49da99718a0fcff1b1f810286"
+    }
+  ],
+  "validation": [
+    "tsc --noEmit",
+    "all unit tests via tsx --test",
+    "node tests/e2e/task-list.e2e.cjs",
+    "node tests/e2e/task-integration.e2e.cjs",
+    "node tests/e2e/product-package.e2e.cjs <extracted portable executable>",
+    "node tools/preflight.mjs",
+    "node tools/validate-dev-contract.mjs"
+  ]
+}
