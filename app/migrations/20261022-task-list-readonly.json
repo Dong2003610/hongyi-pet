@@ -1,0 +1,39 @@
+{
+  "id": "20261022-task-list-readonly",
+  "description": "Authorized daily-task-list integration, phase 1: account login, read-only task views and chat queries. Source entry migration; preflight, build tools and all other protected files remain unchanged.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "33031b6dd204b50f0a4d46a0d5c10ba98dbbf1e4cd23aeadef363717d70a73ee",
+      "to": "fc262a9af49942016b6f7093397cb69e17605d512dfe68bfce6c36d263347056"
+    },
+    {
+      "file": "src/preload.ts",
+      "from": "3152c0f59f92cbd21d38902f76197e850d2d83f8f0e2a6ac3d33bc5ea0d2dafa",
+      "to": "62d69bc8823a829f9be8d2db06575f627ac8e2d844e8a49f6adbd64ee65d4d26"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "e6c93638d94f7c3cdc944382c5e6315a46c20ea65537673450c8dfb876816bc1",
+      "to": "0a188d16c36054e207e06131c5c668fc03236246f455df608e69508998e98042"
+    },
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "bc8f80972a39ab9c3dde43d3a58be79b5929b8727c4a6f61a8040797413266a3",
+      "to": "efcc118939dba692db763e6c70bd73450462874735815184b3a6f7c99668162b"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "80fb385b96faa24de79ba40f5f193411b9f4869845e10d3822ac618912a440ca",
+      "to": "36c15e65cfaab9f2cf2124267d061626c03dd3a31dc169effdfe1841b3a5d5db"
+    }
+  ],
+  "validation": [
+    "npx tsc --noEmit",
+    "npm test",
+    "npx tsx --test tests/unit/task-list.test.ts",
+    "node tests/e2e/task-list.e2e.cjs"
+  ]
+}
