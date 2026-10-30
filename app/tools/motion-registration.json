@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "canvas": 512,
+  "baseline": 485,
+  "centerX": 256,
+  "referenceFace": 35,
+  "source": "../incoming-assets/motion-originals-20261030",
+  "rules": {
+    "idle": {
+      "mode": "preserve"
+    },
+    "blink": {
+      "mode": "preserve"
+    },
+    "happy": {
+      "mode": "face",
+      "measurements": [
+        50,
+        42,
+        35,
+        39,
+        48
+      ]
+    },
+    "notify": {
+      "mode": "face",
+      "measurements": [
+        37,
+        38,
+        39,
+        41,
+        40
+      ]
+    },
+    "peek": {
+      "mode": "face",
+      "measurements": [
+        43,
+        37,
+        38,
+        43,
+        43
+      ]
+    },
+    "pet": {
+      "mode": "face",
+      "measurements": [
+        42,
+        43,
+        35,
+        43,
+        42
+      ]
+    },
+    "eat": {
+      "mode": "face",
+      "measurements": [
+        46,
+        43,
+        43,
+        34,
+        40
+      ]
+    },
+    "walk-left": {
+      "mode": "height",
+      "target": 330
+    },
+    "walk-right": {
+      "mode": "height",
+      "target": 330
+    },
+    "sleep": {
+      "mode": "original"
+    }
+  },
+  "notes": [
+    "Face measurements are manually reviewed landmarks, not a body-height fit: crouching, jumping and lying retain their shorter silhouettes.",
+    "Walking frames have no overhead props; fixed standing height removes camera scale drift while preserving leg poses.",
+    "Source PNGs are immutable inputs. Never resample already normalized output."
+  ],
+  "sourceHashes": {
+    "idle-01.png": "c226ffa3afdc76f6a8a08a4edeb32ddd1a083c9edd26bc2f02c4ea9b12577bd9",
+    "idle-02.png": "ae494f7d85d9249d0429e8fd1a4ab057ae650c9b63ca784754f0c254c7beef51",
+    "idle-03.png": "4c852fd458edad22db6dde0c33721ecbc41c3e6bd0f6935e2f78fdc0b4161c37",
+    "idle-04.png": "8bffb51645500ae82016b04deba80bda82f5fce1f1a68eee1319a42e677b6cb6",
+    "blink-01.png": "df74f23d5fa68f7c903ff60fc293c8b0173a9d0df3aa37740dff5f1df9a185c3",
+    "blink-02.png": "b7fb1c7b27484542ca0d51e3ebebc84394b8a013b5694599488178182a2dd509",
+    "blink-03.png": "137897d7f72f5becb54cbc1a078bb6e18224e93188cac75fd2a46dba4d688c21",
+    "blink-04.png": "f8693ed906137fb898be89bae4fdc09be497952604048af3bc4cc2e851d6964a",
+    "blink-05.png": "5b35140cf21fbb4f30dad46ac093a026c259e31715cd8d3e768c494d85ce1afb",
+    "happy-01.png": "8f664ab26ea2f0236fb788d7915a819a617c92f70fa53db73b23c06ec7f731df",
+    "happy-02.png": "0ba56c4ea219a5961a84bd2a4652723e34f00f097087965d6024c211cf0d5c09",
+    "happy-03.png": "19641b5d3726bd26ff9a8a1bcdd8c6c7292bdb2e6be37161f534e1baf9caabc5",
+    "happy-04.png": "a1d26741182e3198b45216181173ab8998b9462dd7fefeecdf000291631e3da6",
+    "happy-05.png": "8f87cd1646e39f1b56ea47ea2964cac9c014b6847539d29e0830c3683b124741",
+    "notify-01.png": "d49590c412b2d09b304d7f7f9a5b7e66e058820e03670162e1d6e185387cf4f3",
+    "notify-02.png": "8f74c64f8feedb34eadcc1c0a48a5d96cc5dc143bc8c33649e7c9b52dddeaf9e",
+    "notify-03.png": "f81bb504b56b956be32ccf7d1ff03c897a0a918d30c5e4526d4b38dbf10c4d6e",
+    "notify-04.png": "8edc17c4e55e75f2d93b840fddaf79877384a318902daf69717bbf66dc91b756",
+    "notify-05.png": "f5579ff0abc3855e68c07159cc2956a2c453391a9f88bd8534769fcae366d2a0",
+    "peek-01.png": "b0b4f42a0a2b0bc11fedbd6690a1a41793528cf0d0af3c3a029e53cedfc92da7",
+    "peek-02.png": "1cdbdf27ccdf896d27c5c5fedb056bdbc259ac24cccf6bd497acec836d45c6ff",
+    "peek-03.png": "c5ae834a29005492cc3bbbbd16c1cde6816a260ca510f27112598525ce88e921",
+    "peek-04.png": "fd68254f075529321a0d276a0d6a587966a2ec929db3fac88026fbfb8faff914",
+    "peek-05.png": "feb55c30e1a184b6eb1c99e02ae2bc201d1123a142bd7689f226e4b12526c6e8",
+    "pet-01.png": "f836680a326711dc71f70e63b11cc9df5d23c46897965ea6e83f5c6beeafdbe3",
+    "pet-02.png": "fa03e71f36ca8f3f115616f202bdad7ac1bbea2ca0f94d832dc06648602bff83",
+    "pet-03.png": "1b8086583f1202d732108e597b94219dfe587f97f8552396779b1447b00022b2",
+    "pet-04.png": "88bc8e1a7adcd0c34c18fb73cf6201d8daec4d5a5aa5e52a9d3e91835cd56905",
+    "pet-05.png": "84c93371b3f298d697457dd440680bf2ace96b4eaf8dd52dcdee202eb317d664",
+    "eat-01.png": "c98148dd39a867833c79af23e5b81e1ac1451e9a22a2d49e3a5815210251f787",
+    "eat-02.png": "6b3e359cec592ed688eac12d011e91e93aacd85f0cc3f0b7cc19a98d2a7ac226",
+    "eat-03.png": "62983dceff2ada574f2e5235cd464f2f5f54061883de15c9d997e0fa717e3666",
+    "eat-04.png": "c57932a021680d9a1944a012b6e8079912c7c8138161bdcd2e6d35789c37e4ba",
+    "eat-05.png": "227558de8bcfe79d889d1417ca535b8a2f837e6bf5563e06fe1c554abc1a27ba",
+    "walk-left-01.png": "c54117c93b2290df5d7e9ee12abe826a921d4a87be8842316811502bcb4ebab1",
+    "walk-left-02.png": "aa93093d47587787d4c74c127579046b02860225a868b85fc4832ac821475825",
+    "walk-left-03.png": "b11f3d03a90fef775363cea124aff2819548ce00b0773488a62ed39b5f036519",
+    "walk-left-04.png": "7e0df4f991554593387051e824815ae21f524d485175dbe556f42f828e394769",
+    "walk-left-05.png": "a366761dc3c65c9f6536de9f16135b4ce6e2ba0461c6a011a5c89f7ff62da413",
+    "walk-left-06.png": "0a93926a76ead28e4c11eed368804c735237ec27fa7c8d02fe34325a4c4a24f0",
+    "walk-right-01.png": "64976231ff602be192336cd1a2c035ab90f8f3dbb4d2a89fa1f3a9f8aaef057d",
+    "walk-right-02.png": "f533d4e7eff7bbef1c054b25be766dbe4fd9c916d366d5be227df904769da924",
+    "walk-right-03.png": "4af6ddcdbb870e739d21593bc400a6eb60fad2b66e48e2ef8b7b590222c9c7d0",
+    "walk-right-04.png": "207e408aec6deced3d41a9ca048359ad505cd7a464c78db469a4af17d2477025",
+    "walk-right-05.png": "6dbdafdc7e47095f0eca7865b9afe626d1d68d708c228556928c18496da0ca5a",
+    "walk-right-06.png": "81fa3d0721ec2a572cad6fa001f3a7c27a97a0f7c10bcc76d6feda320cc62b7d",
+    "sleep-01.png": "be974cec08664c12a564fb82ee0bac817151522fc62bcb1030432869bbc689e6",
+    "sleep-02.png": "b7e6c5b21e0e5b51fa6364614184770127d77282a213d941ec198b3cb5b3131d",
+    "sleep-03.png": "cc13ccd093d20d41305e58cef00b25aa2336fb6807fa468c9b9587b9f0077bb1",
+    "sleep-04.png": "7cfdd3b4810721dcaab417239619c35fd6562d2a2f530cb1eb662d90e4604d0c",
+    "sleep-05.png": "db9b4b606f468c0e688603c9a1356e034e555ea93ae732e4d136fdb01da1685f",
+    "sleep-06.png": "412186a85f61b13c511e3e6f629d6535c86a54d1c01a49e5d829c847e395691e"
+  }
+}
