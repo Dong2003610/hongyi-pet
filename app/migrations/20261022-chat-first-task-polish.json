@@ -1,0 +1,28 @@
+{
+  "id": "20261022-chat-first-task-polish",
+  "description": "User-authorized smaller translucent closer bubble, pet-specific transparent-left-padding allowance, real chat focus start/control, confirmed planning and rollover, chat reminders/settings, and collapsed task tools with chat timer status. Only main source wiring and dashboard markup require protected-entry migration; build tooling and contract versions remain unchanged.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "8dabc099adeca812898e91b6bbeb79a91a948be1d711ebeebaaf3baae4525791",
+      "to": "aa1d19ae92b3b034ff7a87dcba709ee53a810857bd043eaa69b996d2a92c673d"
+    },
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "9bc2bf3fb9f3b68276041bc8c15eebabe2d8902e65a1fe3969ebc08c001535b4",
+      "to": "e4edb45a03eae05da712e3aee2cabe0aea47eb10a9b1b671c7eaf8ad989039a8"
+    }
+  ],
+  "validation": [
+    "npm test",
+    "npx tsx --test tests/unit/task-list.test.ts tests/unit/task-list-write.test.ts tests/unit/task-companion.test.ts tests/unit/task-chat-actions.test.ts",
+    "npx tsc --noEmit",
+    "node tests/e2e/task-list.e2e.cjs",
+    "node tests/e2e/pet-surfaces.e2e.cjs",
+    "node tests/e2e/task-integration.e2e.cjs",
+    "node tools/preflight.mjs",
+    "node tools/validate-dev-contract.mjs"
+  ]
+}
