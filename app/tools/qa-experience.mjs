@@ -23,7 +23,8 @@ for (const state of spec.states) {
 for (const interaction of spec.experience.interactions) {
   const state = stateById.get(interaction.stateId);
   if (!state) issues.push({ gate: 'interaction', interaction: interaction.id, message: `missing state ${interaction.stateId}` });
-  else if (state.frames.length < 2) issues.push({ gate: 'motion', interaction: interaction.id, message: 'interaction state needs at least two distinct frames' });
+  else if (state.frames.length < 2 && !(state.frames.length === 1 && state.proceduralMotion === 'breathing' && state.loop && spec.motion.breathing.enabled))
+    issues.push({ gate: 'motion', interaction: interaction.id, message: 'interaction needs distinct poses or an explicit procedural breathing loop' });
   if (triggerOwners.get(`interaction:${interaction.id}`) !== interaction.stateId) issues.push({ gate: 'interaction', interaction: interaction.id, message: 'menu action, trigger and stateId are not connected' });
 }
 const multiFrameStates = spec.states.filter((state) => state.frames.length >= 2).map((state) => state.id);
