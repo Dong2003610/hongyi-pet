@@ -32,7 +32,19 @@ async function request(endpoint, method = 'GET', body) {
 }
 const localHead = git(['rev-parse', 'HEAD']).trim();
 const remoteHead = (await request('git/ref/heads/main')).object.sha;
-const base = new Map(git(['ls-tree', '-r', '-z', 'HEAD']).split('\0').filter(Boolean)
+let base;
+try {
+  const verified = JSON.parse(await fs.readFile(path.join(root, 'app/.build/contents-publish/verified.json'), 'utf8'));
+  if (verified.repository === repository && verified.verified && /^[0-9a-f]{40}$/.test(verified.commit)) {
+    if (remoteHead !== verified.commit) throw new Error('GitHub main changed since the last verified Contents API upload; review the new remote commit first');
+    const priorTree = await request(`git/trees/${verified.commit}?recursive=1`);
+    if (priorTree.truncated) throw new Error('Verified base tree is incomplete');
+    base = new Map(priorTree.tree.filter(x => x.type === 'blob').map(x => [x.path, x.sha]));
+  }
+} catch (error) {
+  if (error instanceof Error && error.message.includes('GitHub main changed')) throw error;
+}
+if (!base) base = new Map(git(['ls-tree', '-r', '-z', 'HEAD']).split('\0').filter(Boolean)
   .map(s => [s.slice(s.indexOf('\t') + 1), s.slice(0, s.indexOf('\t')).split(' ')[2]]));
 const remoteTree = await request(`git/trees/${remoteHead}?recursive=1`);
 if (remoteTree.truncated) throw new Error('Remote tree is incomplete');
