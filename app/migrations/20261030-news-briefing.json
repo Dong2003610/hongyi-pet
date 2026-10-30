@@ -1,0 +1,56 @@
+{
+  "id": "20261030-news-briefing",
+  "description": "Add fixed-source finance, technology, AI and international-policy RSS news to chat; render source-linked cards, optional AI digest/explanation, isolated cache, guarded daily Beijing-time notifications disabled by default, dashboard controls and deterministic offline integration coverage.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "package.json",
+      "from": "2c0a9cf1aa24412dbaad5c3a924242b5dd015a3f3c2a457be2066a60c585f630",
+      "to": "e82b0ac89e33c5674fb1df92402ba4b53f76a3f058bfe464ca9de8f57db12f92"
+    },
+    {
+      "file": "package-lock.json",
+      "from": "9b74f84af9eea44b104b9fcbb7f23bd0ab3b9c04e24a871bfb5dbbcd9c435e2c",
+      "to": "b9a3b940262d80e8ba369b2a024e3752587b41094c50f44cb102398c6acfe135"
+    },
+    {
+      "file": "src/main.ts",
+      "from": "d0e9807695f6d4c17bd226a37e6b8ff036c88dbf8d7423700982215c508d2e81",
+      "to": "af8abf541d9510552bc1d0a88266325a6d88de9d9edc77ada888cfd904b35735"
+    },
+    {
+      "file": "src/preload.ts",
+      "from": "12f22c02489ccd1a8509d867cc072a64c64559de22d320ea16e4c323ee6d4016",
+      "to": "074186fd56dad6858d26c2a6650ba23d86eaf4c4590366b0b8698c1b81b7d761"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "ad983f58ec808686e5f456a8beca5d591cf177a2cb3769711297fb81876261e8",
+      "to": "b47cb1535188717200207e265010283dd20914c994cf25a42cb47439b51cc179"
+    },
+    {
+      "file": "src/main/data-validation.ts",
+      "from": "9af64345869b7974995ce8d8c292e3d5a20b441d07cfd0c50d0f6d66c8b652dd",
+      "to": "d3fd0ba2a7d28f46f9ffee49ee1df98413da98d61ecaa56aaaa6deb0885eebcf"
+    },
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "2d628ad6ed2c504cd507d45c83c88755c18c21340260c26e72b3945f12d32bb5",
+      "to": "2328c2d747db5bbe938c517260d086400c5228f85c97b5e798fecbac185731aa"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "4374c0f538fae1f10c837f519ddd9c97ff952ed49da99718a0fcff1b1f810286",
+      "to": "7f4205f430dd60d9e473e1442f773cd0eade2296a7b03c7b7dacc1e3e82ad3b3"
+    }
+  ],
+  "validation": [
+    "npm test",
+    "npx tsc --noEmit",
+    "node tests/e2e/task-integration.e2e.cjs with local-only fake RSS and task backend",
+    "node tests/e2e/task-list.e2e.cjs",
+    "node tools/preflight.mjs",
+    "node tools/validate-dev-contract.mjs"
+  ]
+}
