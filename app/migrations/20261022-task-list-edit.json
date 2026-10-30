@@ -1,0 +1,39 @@
+{
+  "id": "20261022-task-list-edit",
+  "description": "User-requested first three task-list features: read/create/complete, rename and priority edits, compact account dialog, constrained AI interpretation and same-name selection. Update five source entry versions; retain build tools, preflight and template contract.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "fc262a9af49942016b6f7093397cb69e17605d512dfe68bfce6c36d263347056",
+      "to": "6b5dbc65ed5252de0910a1416c72cdc87ea77cd15ae3b1c11c3e7cad352156bb"
+    },
+    {
+      "file": "src/preload.ts",
+      "from": "62d69bc8823a829f9be8d2db06575f627ac8e2d844e8a49f6adbd64ee65d4d26",
+      "to": "bc1674adf9807bdf7986a05bd62467a579129255b1294256ca4958bac8451d4b"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "0a188d16c36054e207e06131c5c668fc03236246f455df608e69508998e98042",
+      "to": "df55d4cdd67cb5dab47c30067d70d4764de37b3c0b543d542ed22587725a2d9c"
+    },
+    {
+      "file": "src/renderer/dashboard/index.html",
+      "from": "efcc118939dba692db763e6c70bd73450462874735815184b3a6f7c99668162b",
+      "to": "f9099bccfb55537a3acdbf7e6d9dc10378da9363a8b1b710226d904dd06fa54c"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "36c15e65cfaab9f2cf2124267d061626c03dd3a31dc169effdfe1841b3a5d5db",
+      "to": "b7e6c007ab946c1b99d190608b8a639da2a1eea957d27a318290c875d30866b5"
+    }
+  ],
+  "validation": [
+    "npx tsc --noEmit",
+    "npm test",
+    "npx tsx --test tests/unit/task-list.test.ts tests/unit/task-list-write.test.ts",
+    "node tests/e2e/task-list.e2e.cjs"
+  ]
+}
