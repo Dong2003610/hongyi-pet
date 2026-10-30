@@ -1,0 +1,48 @@
+{
+  "id": "20261030-motion-registration",
+  "description": "User-authorized character scale/anchor correction and motion cleanup. Preserve immutable source art; register 44 runtime frames; remove standing gait frames and feeding kick; use a declared procedural sleeping breath. Pose-count validation accepts meaningful subsets and an explicit procedural loop instead of forcing unrelated images into animation. Existing geometry QA thresholds and build authorization stay unchanged.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "tools/qa-experience.mjs",
+      "from": "580d5f83aa4dac97cc568b3b340407f7cef426875be03f3dde596c4021a11300",
+      "to": "4bb4641e1d1fee1ecb71eb223b4f1825b57ad369184d50e28759d127965bad01"
+    },
+    {
+      "file": "tools/validate-spec.mjs",
+      "from": "4d38bbf46c0f4ece77d26e1ca0834b6bc3406ab70babb3eae8477071ed8a1f4a",
+      "to": "5b18c55307e4eedad64a88b42836e3c8044d8aef5cf3f71eaca3bbbd7f5a74c4"
+    },
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "3d0aed362640396520b1435c5f95965cb520900d86a487a162e66b944e9fe96f",
+      "to": "71b580c6df8f03837b6ffd3e0c5bffec0d052cc136c8bef49f42f8cb7b7b1b71"
+    },
+    {
+      "file": "pet-spec.json",
+      "from": "3c65170aad1dfccda519fccc8bc595ae89c9580369d7391ce1ee419822bafc08",
+      "to": "b29ea79a69907a8906cc3e415169266b715be7dacd936b16c96070397f6885ee"
+    },
+    {
+      "file": "package.json",
+      "from": "bd5bce7b0d3601c95192db741a42c71383a26ca1efba15a851ae3a458ad050ed",
+      "to": "2c0a9cf1aa24412dbaad5c3a924242b5dd015a3f3c2a457be2066a60c585f630"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "a8859959e04c982c763ac3d4f7d3cf68c012fbb9b4893a9f790c253dc685d21f",
+      "to": "ad983f58ec808686e5f456a8beca5d591cf177a2cb3769711297fb81876261e8"
+    }
+  ],
+  "validation": [
+    "128 unit tests via tsx --test tests/unit/*.test.ts tests/unit/*.test.mjs",
+    "tsc --noEmit",
+    "node tests/e2e/pet-interaction.e2e.cjs",
+    "preview HTML image decoding and six sizes",
+    "normalization repeatability is byte-identical",
+    "node tools/preflight.mjs",
+    "node tools/validate-dev-contract.mjs"
+  ],
+  "knownLimitations": "Generic silhouette-area QA, original feature trigger declarations and dashboard import checks remain unresolved; see docs/20261030-motion-registration.md. This migration does not claim all static asset gates passed."
+}
