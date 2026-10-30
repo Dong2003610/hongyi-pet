@@ -2,7 +2,7 @@ import spec from '../../../pet-spec.json';
 import type { PetSpec, StateActivity } from '../../shared/contracts';
 import { exceedsDragThreshold } from '../../main/drag';
 import { PetStateMachine, type StateFrame } from './state-machine';
-import { petPose } from './pose-motion';
+import { petPose, usesBreathing } from './pose-motion';
 import './index.css';
 
 const petSpec = spec as PetSpec;
@@ -51,6 +51,11 @@ if (breathing.enabled) {
 
 // 显示反馈气泡
 function showFeedback(text: string): void {
+  if (window.petAPI?.window.showFeedback) {
+    feedbackBubble.classList.remove('show');
+    void window.petAPI.window.showFeedback(text).catch(() => {});
+    return;
+  }
   if (feedbackTimer) clearTimeout(feedbackTimer);
   const characters = Array.from(text);
   const limit = window.innerWidth <= 115 ? 16 : window.innerWidth <= 150 ? 26 : window.innerWidth <= 190 ? 34 : 40;
@@ -68,6 +73,7 @@ function showFeedback(text: string): void {
 
 function renderFrame(snapshot: StateFrame): void {
   container.dataset.state = snapshot.stateId;
+  sprite.classList.toggle('breathing', usesBreathing(snapshot.stateId, petSpec.states, breathing.enabled));
   const frameUrl = assetMap.get(snapshot.frame);
   if (frameUrl) sprite.src = frameUrl;
   const pose = petPose(snapshot.stateId, snapshot.frame);
@@ -128,6 +134,12 @@ container.addEventListener('click', () => {
   scheduleIdleEvents();
 });
 
+container.addEventListener('dblclick', (event) => {
+  event.preventDefault();
+  if (isDragging || suppressNextClick || performance.now() - lastDragAt < 450) return;
+  void window.petAPI?.window.showQuickChat?.().catch(() => {});
+});
+
 // 拖拽
 let isDragging = false;
 let pointerStart = { x: 0, y: 0 };
@@ -138,6 +150,7 @@ let activePointerId: number | undefined;
 let dragUpdatePending = false;
 let suppressNextClick = false;
 let dragBegin: Promise<void> | undefined;
+let lastDragAt = -Infinity;
 
 container.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || activePointerId !== undefined) return;
@@ -195,6 +208,7 @@ function finishPointer(event: PointerEvent): void {
   if (dragIdleTimer) clearTimeout(dragIdleTimer);
   dragIdleTimer = undefined;
   if (dragged) {
+    lastDragAt = performance.now();
     suppressNextClick = true;
     if (dragWalkState) setState('idle', undefined, true);
     void (dragBegin ?? Promise.resolve())
