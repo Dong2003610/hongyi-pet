@@ -1,11 +1,12 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, powerMonitor, screen, shell, Tray, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, Notification, powerMonitor, screen, shell, Tray, type IpcMainInvokeEvent } from 'electron';
 import { copyFile, lstat, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import specData from '../pet-spec.json';
 import type { ChatMessage, InteractionResult, PetSpec, PetStats, Reminder, ReminderRepeat, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 import { assertInteractionId, assertReminderInput, assertRuntimeFailureReport, assertRuntimeReadyReport, assertSettingsPatch, assertStringArray } from './shared/contracts';
-import { clampBounds, draggedBounds, snapBounds, type Point, type Rect } from './main/drag';
+import { draggedBounds, type Point, type Rect } from './main/drag';
+import { clampPetBounds, snapPetBounds } from './main/pet-placement';
 import { JsonLogger } from './main/logger';
 import { atomicWriteJson, uniqueDestination } from './main/persistence';
 import { TypingListener } from './main/typing-listener';
@@ -18,6 +19,16 @@ import { buildContextLines } from './main/context-skills';
 import { AI_ACTION_MARKER, aiReminderPromptLines, parseAiReminderAction, stripAiReminderAction } from './main/ai-actions';
 import { readValidatedJson } from './main/persistence';
 import trayIconPath from './assets/tray/tray-icon.png';
+import taskListPublic from './main/task-list-public.json';
+import { TaskListService, TASK_LIST_WEBSITE } from './main/task-list';
+import { taskListStorage } from './main/task-list-storage';
+import { interpretTaskCommand, TaskListChat } from './main/task-list-chat';
+import { TaskCompanion, draftWeeklyPlan } from './main/task-companion';
+import { PetBubble } from './main/pet-bubble';
+import { personalReminder } from './main/reminder-chat';
+import { isQuiet } from './main/task-companion';
+import { carryTaskId } from './main/task-rules';
+import { normalizeTaskName } from './main/task-targets';
 
 const spec = specData as PetSpec;
 type Role = 'pet' | 'reminder' | 'dashboard';
@@ -37,6 +48,15 @@ let resizeSession: { bounds: Rect; cursor: Point } | undefined;
 let runtimeRendererReport: RuntimeReadyReport | undefined;
 let aiConfig: AiConfig | undefined;
 let chatHistory: ChatMessage[] = [];
+let chatQueue: Promise<unknown> = Promise.resolve();
+let taskList: TaskListService;
+let taskListChat: TaskListChat;
+let taskCompanion: TaskCompanion;
+let companionTimer: ReturnType<typeof setInterval> | undefined;
+let companionTickBusy = false;
+let dashboardMode: 'quick' | 'full' = 'full';
+let fullDashboardBounds: Rect | undefined;
+const petBubble = new PetBubble(() => petWindow, process.env.PET_E2E === '1');
 const interactionReplies = new InteractionReplyService();
 const runtimeReadyRenderers = new Set<Role>();
 let runtimeWindowReady = false;
@@ -56,9 +76,6 @@ let walkTimer: ReturnType<typeof setTimeout> | undefined;
 let walkTick: ReturnType<typeof setInterval> | undefined;
 let clickThroughResumeTimer: ReturnType<typeof setTimeout> | undefined;
 let lastDueReminder: Reminder | undefined;
-let pomodoroPhase: 'idle' | 'work' | 'break' = 'idle';
-let pomodoroEndsAt = 0;
-let pomodoroTimer: ReturnType<typeof setTimeout> | undefined;
 const expectedRuntimeAssets = new Set([spec.character.coreAsset, ...spec.states.flatMap((state) => state.frames)]);
 const runtimeReadyFile = path.join(process.cwd(), '.build', 'runtime-ready.json');
 const runtimeFailureFile = path.join(process.cwd(), '.build', 'runtime-failed.json');
@@ -117,6 +134,10 @@ if (process.env.PET_E2E === '1') {
   };
 }
 
+function notifyTaskListUpdated(): void {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('task-list:updated');
+}
+
 function userFile(name: string): string { return path.join(app.getPath('userData'), name); }
 function filePocket(): string { return path.join(app.getPath('documents'), spec.app.name); }
 function stateForTrigger(trigger: string) { return spec.states.find((state) => state.triggers.includes(trigger)); }
@@ -145,7 +166,7 @@ async function commitRuntimeReady(): Promise<void> {
     ...runtimeRendererReport,
     status: 'ready',
     expectedAssetCount: expectedRuntimeAssets.size,
-    windowCount: BrowserWindow.getAllWindows().length,
+    windowCount: [petWindow, reminderWindow, dashboardWindow].filter((win) => win && !win.isDestroyed()).length,
     petVisible: petWindow.isVisible(),
     ipcReady: true,
     renderers: {
@@ -247,7 +268,7 @@ function clampPetToWorkArea(): void {
   if (!petWindow || petWindow.isDestroyed()) return;
   const bounds = petWindow.getBounds();
   const workArea = screen.getDisplayMatching(bounds).workArea;
-  petWindow.setBounds(clampBounds(bounds, workArea), false);
+  petWindow.setBounds(clampPetBounds(bounds, workArea), false);
 }
 
 function playSound(kind: string): void {
@@ -311,17 +332,20 @@ function walkPet(direction: 1 | -1, durationMs: number): void {
     }
     const bounds = petWindow.getBounds();
     const area = petWorkArea();
-    const next = clampBounds({ ...bounds, x: bounds.x + step, y: startY }, area);
+    const next = clampPetBounds({ ...bounds, x: bounds.x + step, y: startY }, area);
     petWindow.setBounds(next, false);
     if (next.x === bounds.x || Date.now() - started >= durationMs) stopWalk();
   }, 40);
 }
 
+function companionBusy(): boolean { return taskCompanion?.status().focus.phase === 'running'; }
+function companionQuiet(): boolean { return Boolean(taskCompanion && isQuiet(taskCompanion.status().preferences, new Date())); }
+
 function scheduleAutonomousWalk(): void {
   if (walkTimer) clearTimeout(walkTimer);
   if (!spec.features.autonomousMovement) return;
   walkTimer = setTimeout(() => {
-    if (petWindow && !petWindow.isDestroyed() && petWindow.isVisible() && stats.mood >= 25 && !dragSession) {
+    if (petWindow && !petWindow.isDestroyed() && petWindow.isVisible() && stats.mood >= 25 && !dragSession && !companionBusy() && !companionQuiet()) {
       const bounds = petWindow.getBounds();
       const area = petWorkArea();
       let dir: 1 | -1 = Math.random() < 0.5 ? -1 : 1;
@@ -338,40 +362,6 @@ function markInteracted(): void {
   stats.lastInteractionAt = lastInteractionAt;
 }
 
-function broadcastPomodoro(): void {
-  const value = { phase: pomodoroPhase, endsAt: pomodoroEndsAt };
-  for (const window of [petWindow, reminderWindow, dashboardWindow]) {
-    if (window && !window.isDestroyed()) window.webContents.send('pomodoro:status', value);
-  }
-}
-
-function stopPomodoro(): void {
-  if (pomodoroTimer) clearTimeout(pomodoroTimer);
-  pomodoroTimer = undefined;
-  pomodoroPhase = 'idle';
-  pomodoroEndsAt = 0;
-  broadcastPomodoro();
-}
-
-function startPomodoroPhase(phase: 'work' | 'break'): void {
-  if (pomodoroTimer) clearTimeout(pomodoroTimer);
-  pomodoroPhase = phase;
-  const minutes = phase === 'work' ? settings.pomodoroWorkMin ?? 25 : settings.pomodoroBreakMin ?? 5;
-  const duration = minutes * 60_000;
-  pomodoroEndsAt = Date.now() + duration;
-  broadcastPomodoro();
-  pomodoroTimer = setTimeout(() => {
-    playSound('notify');
-    if (phase === 'work') {
-      sendActivity({ kind: 'notify', stateId: 'notify', durationMs: 1800, feedback: '专注结束，休息一下～' });
-      startPomodoroPhase('break');
-    } else {
-      sendActivity({ kind: 'notify', stateId: 'happy', durationMs: 1600, feedback: '休息好啦，继续加油！' });
-      startPomodoroPhase('work');
-    }
-  }, duration);
-}
-
 function startActivityWatcher(): void {
   if (activityTimer) clearInterval(activityTimer);
   lastPresenceTick = Date.now();
@@ -382,11 +372,11 @@ function startActivityWatcher(): void {
     lastPresenceTick = now;
     if (idle < 3) {
       presenceMs += delta;
-      if (settings.typingReaction && idle < 2 && now - lastInteractionAt > 12_000) {
+      if (settings.typingReaction && idle < 2 && now - lastInteractionAt > 12_000 && !companionBusy() && !companionQuiet()) {
         sendActivity({ kind: 'typing', stateId: 'peek', durationMs: 900 });
         lastInteractionAt = now - 4000;
       }
-      if (settings.sedentaryReminder && presenceMs >= 45 * 60_000 && now - lastSedentaryAt > 40 * 60_000) {
+      if (settings.sedentaryReminder && presenceMs >= 45 * 60_000 && now - lastSedentaryAt > 40 * 60_000 && !companionBusy() && !companionQuiet()) {
         lastSedentaryAt = now;
         presenceMs = 0;
         playSound('notify');
@@ -402,6 +392,7 @@ function startActivityWatcher(): void {
 function startDecayLoop(): void {
   if (decayTimer) clearInterval(decayTimer);
   decayTimer = setInterval(() => {
+    if (companionBusy() || companionQuiet()) return;
     if (Date.now() - lastInteractionAt < 10 * 60_000) return;
     stats.mood = Math.max(0, stats.mood - 3);
     stats.affection = Math.max(0, stats.affection - 1);
@@ -441,6 +432,9 @@ function createWindows(): void {
     opacity: e2eMode ? 0 : 1,
   }, 'pet', PET_WINDOW_PRELOAD_WEBPACK_ENTRY);
   void petWindow.loadURL(PET_WINDOW_WEBPACK_ENTRY);
+  petWindow.on('move', () => petBubble.reposition());
+  petWindow.on('resize', () => petBubble.reposition());
+  petWindow.on('hide', () => petBubble.hide());
   petWindow.once('ready-to-show', () => {
     applyPetSettings();
     petWindow?.center();
@@ -559,8 +553,28 @@ async function persistChatHistory(): Promise<void> {
   await atomicWriteJson(userFile('chat-history.json'), chatHistory);
 }
 
-async function chatReply(text: string): Promise<string> {
-  chatHistory.push({ role: 'user', content: text });
+async function recordTurn(text: string | undefined, reply: ChatMessage): Promise<ChatMessage> {
+  if (reply.source === 'task') reply.accountId = taskList.accountKey() ?? 'local';
+  if (text) chatHistory.push({ role: 'user', content: text, source: reply.source, accountId: reply.accountId });
+  chatHistory.push(reply); chatHistory = chatHistory.slice(-80);
+  try { await persistChatHistory(); }
+  catch { reply.content += '\n本次对话记录未能写入本机，操作结果以卡片为准。'; }
+  return reply;
+}
+function serializeChat<T>(run: () => Promise<T>): Promise<T> {
+  const result = chatQueue.then(run); chatQueue = result.catch(() => {}); return result;
+}
+async function chatTurn(text: string): Promise<ChatMessage> {
+  const local = personalReminder(text, new Date(), taskList.status().connected);
+  if (local) {
+    try {
+      const saved = await createReminder(local);
+      return recordTurn(text, { role: 'assistant', source: 'reminder', content: `已保存${local.repeat === 'none' ? '' : local.repeat === 'daily' ? '每日' : '工作日'}提醒：“${saved.text}”。`,
+        cards: [{ kind: 'reminder', title: saved.text, state: 'saved', detail: `${new Date(Date.parse(saved.dueAt) + 8 * 3600_000).toISOString().slice(0, 16).replace('T', ' ')} · 北京时间 · 本机提醒${local.repeat !== 'none' ? ' · 重复提醒不创建任务' : ''}` }] });
+    } catch { return recordTurn(text, { role: 'assistant', source: 'reminder', content: '提醒保存失败，请检查本机存储后重试。', cards: [{ kind: 'error', title: '提醒尚未保存', state: 'failed' }] }); }
+  }
+  const taskReply = await taskListChat.turn(text);
+  if (taskReply !== undefined) return recordTurn(text, taskReply);
   const fallback = replyToChat(text, { name: effectiveDisplayName(), mood: stats.mood, affection: stats.affection });
   let reply = fallback;
   if (aiConfig) {
@@ -579,7 +593,8 @@ async function chatReply(text: string): Promise<string> {
     if (weather) promptLines.push(`实时天气：${weather}。用户问天气时以此为准。`);
     promptLines.push(...await buildContextLines(reminders));
     if (spec.features.reminders) promptLines.push(...aiReminderPromptLines());
-    const messages: AiChatMessage[] = [{ role: 'system', content: promptLines.join('\n') }, ...chatHistory.slice(-10)];
+    promptLines.push('未收到真实执行结果时，不要声称已经添加、保存、修改或完成任务。');
+    const messages: AiChatMessage[] = [{ role: 'system', content: promptLines.join('\n') }, ...chatHistory.filter((item) => !item.source || item.source === 'chat').slice(-10).map(({ role, content }) => ({ role, content })), { role: 'user', content: text }];
     try {
       reply = await chatWithAi(aiConfig, messages);
       if (reply.includes(AI_ACTION_MARKER)) {
@@ -587,13 +602,15 @@ async function chatReply(text: string): Promise<string> {
         reply = stripAiReminderAction(reply) || '好哒，已经帮你记下啦！';
         if (action) {
           try {
-            const reminder = await createReminder(action);
+            const reminder = await saveUnifiedReminder(action);
             void logger?.write('info', 'ai-reminder-created', { text: reminder.text, dueAt: reminder.dueAt, repeat: reminder.repeat });
           } catch (error) {
             void logger?.write('warn', 'ai-reminder-invalid', { message: error instanceof Error ? error.message : String(error) });
+            reply = '提醒没有保存成功，请重新告诉我提醒内容和时间。';
           }
         } else {
           void logger?.write('warn', 'ai-reminder-parse-failed', { reply: reply.slice(0, 200) });
+          reply = '提醒时间或内容未能识别，尚未保存。请补充具体内容和时间。';
         }
       }
     } catch (error) {
@@ -601,10 +618,7 @@ async function chatReply(text: string): Promise<string> {
       reply = fallback;
     }
   }
-  chatHistory.push({ role: 'assistant', content: reply });
-  if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
-  void persistChatHistory();
-  return reply;
+  return recordTurn(text, { role: 'assistant', source: 'chat', content: reply });
 }
 
 function showReminderComposer(): void {
@@ -618,9 +632,24 @@ function showReminderComposer(): void {
   reminderWindow.webContents.send('reminder:compose');
 }
 
-function showDashboard(): void {
+function showDashboard(mode: 'quick' | 'full' = 'full'): void {
   if (!spec.features.dashboard || !dashboardWindow) return;
-  dashboardWindow.center();
+  if (dashboardMode === 'full') fullDashboardBounds = dashboardWindow.getBounds();
+  dashboardMode = mode;
+  if (mode === 'quick') {
+    petBubble.hide();
+    dashboardWindow.setMinimumSize(320, 320);
+    dashboardWindow.setSize(380, 430, false);
+    positionAbovePet(dashboardWindow);
+  } else {
+    dashboardWindow.setMinimumSize(480, 620);
+    if (fullDashboardBounds) dashboardWindow.setBounds(fullDashboardBounds, false);
+    else dashboardWindow.setSize(520, 700, false);
+    dashboardWindow.center();
+  }
+  const sendMode = () => dashboardWindow?.webContents.send('dashboard:mode', mode);
+  if (dashboardWindow.webContents.isLoadingMainFrame()) dashboardWindow.webContents.once('did-finish-load', sendMode);
+  else sendMode();
   if (e2eMode) dashboardWindow.showInactive();
   else {
     dashboardWindow.show();
@@ -638,7 +667,7 @@ function buildPetMenu(): Electron.MenuItemConstructorOptions[] {
     if (spec.experience.interactions.length) items.push({ type: 'separator' });
   }
   if (spec.features.reminders) items.push({ label: '⏰ 添加提醒', click: showReminderComposer });
-  if (spec.features.dashboard) items.push({ label: `🏠 ${effectiveDisplayName()}的小屋`, click: showDashboard });
+  if (spec.features.dashboard) items.push({ label: `🏠 ${effectiveDisplayName()}的小屋`, click: () => showDashboard() });
   if (spec.features.filePocket) items.push({ label: '📁 打开文件口袋', click: () => void openPocket() });
   items.push({ type: 'separator' });
   items.push({ label: petWindow?.isVisible() ? '🙈 隐藏桌宠' : `🐾 显示${effectiveDisplayName()}`, click: () => { petWindow?.isVisible() ? petWindow.hide() : petWindow?.show(); } });
@@ -661,7 +690,7 @@ function trayTemplate(): Electron.MenuItemConstructorOptions[] {
   const visible = Boolean(petWindow?.isVisible());
   const items: Electron.MenuItemConstructorOptions[] = [
     { label: visible ? '🙈 隐藏桌宠' : `🐾 显示${effectiveDisplayName()}`, click: () => { petWindow?.isVisible() ? petWindow.hide() : petWindow?.show(); } },
-    { label: `🏠 ${effectiveDisplayName()}的小屋`, click: showDashboard },
+    { label: `🏠 ${effectiveDisplayName()}的小屋`, click: () => showDashboard() },
     { label: settings.clickThrough ? '🖱️ 关闭鼠标穿透' : '🖱️ 开启鼠标穿透', click: () => void saveSettings({ ...settings, clickThrough: !settings.clickThrough }) },
   ];
   if (spec.features.filePocket) items.push({ label: '📁 打开文件口袋', click: () => void openPocket() });
@@ -702,6 +731,7 @@ function broadcastDisplayName(): void {
 function restartTypingListener(): void {
   typingListener.stop();
   typingStatus = typingListener.start(settings.typingReaction, () => {
+    if (companionBusy() || companionQuiet()) return;
     const state = stateForTrigger('typing:activity');
     sendActivity({ kind: 'typing', stateId: state?.id, durationMs: 500 });
   });
@@ -740,6 +770,9 @@ function scheduleReminder(reminder: Reminder): void {
       scheduleReminder(reminder);
       return;
     }
+    if (companionQuiet()) {
+      reminderTimers.set(reminder.id, setTimeout(() => scheduleReminder(reminder), 30_000)); return;
+    }
     fireReminderUi(reminder);
     if (reminder.repeat && reminder.repeat !== 'none') {
       reminder.dueAt = nextRepeatDueAt(reminder.dueAt, reminder.repeat);
@@ -759,6 +792,7 @@ async function persistReminders(): Promise<void> {
 
 async function createReminder(input: { text: string; dueAt: string; repeat?: ReminderRepeat }): Promise<Reminder> {
   assertReminderInput(input);
+  if (!input.text.trim() || Date.parse(input.dueAt) <= Date.now()) throw new Error('提醒内容不能为空，时间需要晚于现在。');
   const reminder: Reminder = {
     id: randomUUID(),
     text: input.text.trim(),
@@ -766,11 +800,27 @@ async function createReminder(input: { text: string; dueAt: string; repeat?: Rem
     createdAt: new Date().toISOString(),
     repeat: input.repeat ?? 'none',
   };
-  reminders.push(reminder);
-  await persistReminders();
+  const next = [...reminders, reminder];
+  await atomicWriteJson(userFile('reminders.json'), next);
+  reminders = next;
   scheduleReminder(reminder);
   notifyRemindersUpdated();
   return reminder;
+}
+
+async function saveUnifiedReminder(input: { text: string; dueAt: string; repeat?: ReminderRepeat }): Promise<Reminder> {
+  assertReminderInput(input);
+  if (!input.text.trim() || Date.parse(input.dueAt) <= Date.now()) throw new Error('提醒内容不能为空，时间需要晚于现在。');
+  if (!taskList.status().connected || (input.repeat && input.repeat !== 'none')) return createReminder(input);
+  const revision = taskList.accountRevision();
+  const pending = await taskList.list('pending', revision);
+  const matches = pending.items.filter((item) => normalizeTaskName(item.name) === normalizeTaskName(input.text.trim()));
+  if (matches.length > 1) throw new Error('有多项同名任务，请在对话中选择要提醒的那一项。');
+  const date = new Date(Date.parse(input.dueAt) + 8 * 3600_000).toISOString().slice(0, 10);
+  const saved = matches[0] ? await taskList.update({ id: matches[0].id, kind: 'daily', patch: { reminderAt: input.dueAt }, ...(matches[0].updatedAt ? { expectedUpdatedAt: matches[0].updatedAt } : {}) }, revision)
+    : await taskList.create({ id: carryTaskId(`reminder:${taskList.accountKey()}:${normalizeTaskName(input.text)}`, input.dueAt), kind: 'daily', name: input.text.trim(), priority: 'medium', date, reminderAt: input.dueAt }, revision);
+  notifyTaskListUpdated(); notifyRemindersUpdated();
+  return { id: saved.id, text: saved.name, dueAt: saved.reminderAt!, createdAt: saved.createdAt, repeat: 'none', source: 'task' };
 }
 
 async function openPocket(): Promise<void> {
@@ -841,18 +891,29 @@ function registerIpc(): void {
     return saveSettings(parseSettings({ ...settings, ...patch }));
   });
   ipcMain.handle('reminders:list', (event) => { assertSender(event, ['dashboard', 'reminder']); return reminders; });
+  ipcMain.handle('reminders:feed', async (event) => {
+    assertSender(event, ['dashboard']); const items: Reminder[] = reminders.map((item) => ({ ...item, source: 'local' }));
+    try {
+      if (taskList.status().connected) {
+        const pending = await taskList.list('pending', taskList.accountRevision());
+        items.push(...pending.items.filter((item) => item.reminderAt).map((item): Reminder => ({ id: item.id, text: item.name, dueAt: item.reminderAt!, createdAt: item.createdAt, repeat: 'none', source: 'task' })));
+      }
+      return { items: items.sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt)) };
+    } catch { return { items, error: '任务提醒暂时无法同步，本机提醒仍可使用。' }; }
+  });
   ipcMain.handle('reminders:save', async (event, input: unknown) => {
     assertSender(event, ['dashboard', 'reminder']);
     assertReminderInput(input);
-    return createReminder(input);
+    return saveUnifiedReminder(input);
   });
-  ipcMain.handle('reminders:remove', async (event, id: unknown) => {
+  ipcMain.handle('reminders:remove', async (event, id: unknown, source: unknown) => {
     assertSender(event, ['dashboard', 'reminder']);
     if (typeof id !== 'string' || id.length > 100) throw new TypeError('Invalid reminder id');
+    if (source !== undefined && source !== 'local' && source !== 'task') throw new TypeError('Invalid reminder source');
+    if (source === 'task') { await taskList.update({ id, kind: 'daily', patch: { reminderAt: null } }); notifyRemindersUpdated(); notifyTaskListUpdated(); return true; }
     const oldLength = reminders.length;
-    reminders = reminders.filter((item) => item.id !== id);
-    clearReminderTimer(id);
-    await persistReminders();
+    const next = reminders.filter((item) => item.id !== id);
+    await atomicWriteJson(userFile('reminders.json'), next); reminders = next; clearReminderTimer(id);
     notifyRemindersUpdated();
     return oldLength !== reminders.length;
   });
@@ -886,31 +947,79 @@ function registerIpc(): void {
     stats.mood = Math.min(100, stats.mood + 1);
     void persistStats();
     broadcastStats();
-    const reply = await chatReply(text);
-    playSound('notify');
-    sendActivity({ kind: 'interaction', stateId: 'notify', durationMs: 1600, feedback: reply });
-    return reply;
+    const reply = await serializeChat(() => chatTurn(text));
+    if (!companionBusy()) sendActivity({ kind: 'interaction', stateId: 'notify', durationMs: 1600, feedback: reply.content });
+    return reply.content;
   });
-  ipcMain.handle('chat:history', (event) => { assertSender(event, ['dashboard']); return chatHistory; });
+  ipcMain.handle('chat:turn', (event, text: unknown) => {
+    assertSender(event, ['dashboard']);
+    if (typeof text !== 'string' || !text.trim() || text.length > 500) throw new TypeError('Invalid chat text');
+    markInteracted(); return serializeChat(() => chatTurn(text.trim()));
+  });
+  ipcMain.handle('chat:act', (event, id: unknown) => {
+    assertSender(event, ['dashboard']);
+    if (typeof id !== 'string' || id.length > 100) throw new TypeError('Invalid action');
+    return serializeChat(async () => recordTurn(undefined, await taskListChat.act(id)));
+  });
+  ipcMain.handle('chat:history', (event) => { assertSender(event, ['dashboard']); return chatHistory.filter((item) => item.source !== 'task' || item.accountId === (taskList.accountKey() ?? 'local')).map((item) => ({ ...item, activeTaskName: undefined, cards: item.cards?.map((card) => ({ ...card, actions: [] })) })); });
   ipcMain.handle('chat:clear', async (event) => {
     assertSender(event, ['dashboard']);
-    chatHistory = [];
-    await persistChatHistory();
+    await serializeChat(async () => { chatHistory = []; taskListChat.reset(); await persistChatHistory(); });
   });
   ipcMain.handle('ai:status', (event) => { assertSender(event, ['dashboard']); return Boolean(aiConfig); });
-  ipcMain.handle('pomodoro:start', (event) => {
+  ipcMain.handle('ai:configuration', (event) => { assertSender(event, ['dashboard']); return { baseUrl: aiConfig?.baseUrl ?? 'https://open.bigmodel.cn/api/paas/v4', model: aiConfig?.model ?? 'glm-4-flash', city: aiConfig?.city ?? '北京', configured: Boolean(aiConfig) }; });
+  ipcMain.handle('ai:configure', async (event, input: unknown) => {
     assertSender(event, ['dashboard']);
-    startPomodoroPhase('work');
-    sendActivity({ kind: 'notify', stateId: 'happy', durationMs: 1400, feedback: '开始专注 25 分钟！' });
-    return { phase: pomodoroPhase, endsAt: pomodoroEndsAt };
+    const data = input as Partial<AiConfig> | null;
+    if (!data || typeof data.baseUrl !== 'string' || typeof data.model !== 'string' || !data.model.trim() || data.model.length > 150
+      || (data.apiKey !== undefined && (typeof data.apiKey !== 'string' || data.apiKey.length > 2000)) || (data.city !== undefined && (typeof data.city !== 'string' || data.city.length > 50))) throw new Error('请检查 AI 地址、模型和密钥。');
+    const url = new URL(data.baseUrl);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new Error('AI 地址请使用 HTTPS，或本机服务地址。');
+    if (url.username || url.password || url.search || url.hash) throw new Error('AI 地址不能包含密码或查询参数。');
+    const key = data.apiKey?.trim() || aiConfig?.apiKey;
+    if (!key) throw new Error('请输入 API Key。');
+    const next: AiConfig = { baseUrl: data.baseUrl.trim().replace(/\/+$/, ''), model: data.model.trim(), apiKey: key, city: data.city?.trim() || '北京' };
+    await atomicWriteJson(userFile('ai-config.json'), next); aiConfig = next;
+  });
+  ipcMain.handle('ai:test', async (event) => { assertSender(event, ['dashboard']); if (!aiConfig) throw new Error('请先保存 AI 配置。'); await chatWithAi(aiConfig, [{ role: 'user', content: '请回复：连接成功' }], { maxTokens: 20, timeoutMs: 10000 }); });
+  ipcMain.handle('task-list:status', (event) => { assertSender(event, ['dashboard']); return taskList.status(); });
+  ipcMain.handle('task-list:login', (event, input: unknown) => { assertSender(event, ['dashboard']); return serializeChat(async () => { await taskCompanion.suspend(); const result = await taskList.login(input); taskListChat.reset(); taskCompanion.status(); notifyTaskListUpdated(); return result; }); });
+  ipcMain.handle('task-list:logout', (event) => { assertSender(event, ['dashboard']); return serializeChat(async () => { await taskCompanion.suspend(); const result = await taskList.logout(); taskListChat.reset(); taskCompanion.status(); notifyTaskListUpdated(); return result; }); });
+  ipcMain.handle('task-list:list', async (event, view: unknown) => { assertSender(event, ['dashboard']); const snapshot = await taskList.list(view); taskListChat.rememberList(snapshot); return snapshot; });
+  ipcMain.handle('task-list:select', (event, input: unknown) => { assertSender(event, ['dashboard']); const data = input as { id?: string; kind?: string }; if (!data || typeof data.id !== 'string' || !['daily', 'weekly'].includes(data.kind!)) throw new Error('任务选择无效。'); taskListChat.select(data.id, data.kind as 'daily' | 'weekly'); });
+  ipcMain.handle('task-list:rollover', (event, date: unknown) => { assertSender(event, ['dashboard']); if (typeof date !== 'string') throw new Error('接续日期无效。'); return taskList.rollover(date); });
+  ipcMain.handle('task-list:create', async (event, input: unknown) => { assertSender(event, ['dashboard']); const result = await taskList.create(input, taskList.accountRevision()); notifyTaskListUpdated(); return result; });
+  ipcMain.handle('task-list:update', async (event, input: unknown) => {
+    assertSender(event, ['dashboard']); const revision = taskList.accountRevision();
+    const result = await taskList.update(input, revision); notifyTaskListUpdated();
+    if ((input as { patch?: { completed?: boolean } }).patch?.completed === true) await taskCompanion.completed(result, revision).catch(() => {});
+    return result;
+  });
+  ipcMain.handle('task-list:companion', (event) => { assertSender(event, ['dashboard']); return taskCompanion.status(); });
+  ipcMain.handle('task-list:configure', (event, input: unknown) => { assertSender(event, ['dashboard']); return taskCompanion.configure(input); });
+  ipcMain.handle('task-list:focus', async (event, input: unknown) => {
+    assertSender(event, ['dashboard']);
+    return taskCompanion.focus(input);
+  });
+  ipcMain.handle('task-list:briefing', (event, kind: unknown) => { assertSender(event, ['dashboard']); return taskCompanion.briefing(kind); });
+  ipcMain.handle('task-list:plan', async (event, input: unknown) => {
+    assertSender(event, ['dashboard']); if (!taskList.status().connected) throw new Error('请先连接清单账号。');
+    return draftWeeklyPlan(input, aiConfig);
+  });
+  ipcMain.handle('task-list:open-website', async (event) => { assertSender(event, ['dashboard']); await shell.openExternal(TASK_LIST_WEBSITE); });
+  ipcMain.handle('pomodoro:start', async (event) => {
+    assertSender(event, ['dashboard']);
+    const focus = await taskCompanion.focus({ action: 'start', minutes: settings.pomodoroWorkMin ?? 25 });
+    return { phase: focus.phase === 'running' ? 'work' : focus.phase, endsAt: Date.now() + focus.remaining * 1000 };
   });
   ipcMain.handle('pomodoro:stop', (event) => {
     assertSender(event, ['dashboard']);
-    stopPomodoro();
+    return taskCompanion.focus({ action: 'stop' });
   });
   ipcMain.handle('pomodoro:status', (event) => {
     assertSender(event, ['dashboard']);
-    return { phase: pomodoroPhase, endsAt: pomodoroEndsAt };
+    const focus = taskCompanion.status().focus;
+    return { phase: focus.phase === 'running' ? 'work' : focus.phase, endsAt: focus.phase === 'running' ? Date.now() + focus.remaining * 1000 : 0 };
   });
   ipcMain.handle('interactions:list', (event) => { assertSender(event, ['pet', 'dashboard']); return spec.experience.interactions; });
   ipcMain.handle('interactions:stats', (event) => { assertSender(event, ['pet', 'dashboard']); normalizeStatsDay(); return publicStats(); });
@@ -962,7 +1071,7 @@ function registerIpc(): void {
     if (role === 'pet') {
       const point = screen.getCursorScreenPoint();
       const workArea = screen.getDisplayNearestPoint(point).workArea;
-      const snapped = settings.edgeSnap ? snapBounds(window.getBounds(), workArea) : clampBounds(window.getBounds(), workArea);
+      const snapped = settings.edgeSnap ? snapPetBounds(window.getBounds(), workArea) : clampPetBounds(window.getBounds(), workArea);
       window.setBounds(snapped, true);
       if (settings.edgeSnap) {
         const state = stateForTrigger('window:edge-snap');
@@ -992,7 +1101,14 @@ function registerIpc(): void {
     if (petWindow) Menu.buildFromTemplate(buildPetMenu()).popup({ window: petWindow });
   });
   ipcMain.handle('window:show-reminder', (event) => { assertSender(event, ['pet', 'dashboard']); showReminderComposer(); });
-  ipcMain.handle('window:show-dashboard', (event) => { assertSender(event, ['pet']); showDashboard(); });
+  ipcMain.handle('window:show-dashboard', (event) => { assertSender(event, ['pet', 'dashboard']); showDashboard(); });
+  ipcMain.handle('window:quick-chat', (event) => { assertSender(event, ['pet']); showDashboard('quick'); });
+  ipcMain.handle('window:feedback', async (event, text: unknown) => {
+    assertSender(event, ['pet']);
+    if (typeof text !== 'string' || text.length > 6000) throw new TypeError('Invalid feedback');
+    if (dashboardMode === 'quick' && dashboardWindow?.isVisible()) return;
+    await petBubble.show(text);
+  });
   ipcMain.handle('window:hide-reminder', (event) => { assertSender(event, ['reminder']); reminderWindow?.hide(); });
   ipcMain.handle('window:hide-dashboard', (event) => { assertSender(event, ['dashboard']); dashboardWindow?.hide(); });
   ipcMain.handle('window:hide-pet', (event) => { assertSender(event, ['pet', 'dashboard']); petWindow?.hide(); });
@@ -1005,6 +1121,35 @@ async function initialize(): Promise<void> {
   reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
   stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
   aiConfig = await loadAiConfig(app.getPath('userData'));
+  taskList = new TaskListService({ ...taskListPublic, ...taskListStorage(userFile('task-list-session.json')) });
+  await taskList.restore();
+  taskCompanion = new TaskCompanion(taskList, {
+    load: async () => { try { return JSON.parse(await readFile(userFile('task-companion.json'), 'utf8')); } catch { return null; } },
+    save: (data) => atomicWriteJson(userFile('task-companion.json'), data),
+    notify: (title, body) => {
+      if (isQuitting) return;
+      if (Notification.isSupported() && !e2eMode) {
+        const notification = new Notification({ title, body, silent: true });
+        notification.on('click', () => showDashboard()); notification.show();
+      }
+      playSound('notify'); sendActivity({ kind: 'notify', stateId: 'happy', durationMs: 1800, feedback: body });
+    }, changed: notifyTaskListUpdated,
+    activity: (phase, name) => {
+      if (isQuitting) return;
+      if (phase === 'start' || phase === 'resume') stopWalk();
+      if (companionQuiet()) return;
+      const feedback = phase === 'start' ? `开始“${name}”，我会安静陪你。` : phase === 'pause' ? '暂停一下也没关系，准备好了再继续。' : phase === 'resume' ? '好，接着来，我陪你。' : '这一轮辛苦啦，活动一下吧。';
+      sendActivity({ kind: 'notify', stateId: phase === 'start' || phase === 'resume' ? 'idle' : 'happy', durationMs: 1600, feedback });
+    },
+  });
+  await taskCompanion.restore();
+  taskListChat = new TaskListChat(taskList, {
+    interpret: async (text, now) => aiConfig ? interpretTaskCommand(aiConfig, text, now) : undefined,
+    changed: notifyTaskListUpdated,
+    completed: (item, revision) => taskCompanion.completed(item, revision),
+    companion: taskCompanion,
+    plan: (input) => draftWeeklyPlan(input, aiConfig),
+  });
   chatHistory = await readValidatedJson(userFile('chat-history.json'), [] as ChatMessage[], parseChatHistory);
   lastInteractionAt = stats.lastInteractionAt ?? Date.now();
   normalizeStatsDay();
@@ -1016,13 +1161,22 @@ async function initialize(): Promise<void> {
   applyLoginItem();
   registerClickThroughHotkey();
   reminders.forEach(scheduleReminder);
+  const tickCompanion = () => {
+    if (companionTickBusy || isQuitting) return;
+    companionTickBusy = true;
+    void taskCompanion.tick().catch(() => { /* Offline retries on next scan; manual refresh reports details. */ }).finally(() => { companionTickBusy = false; });
+  };
+  companionTimer = setInterval(tickCompanion, 5000);
+  tickCompanion();
   powerMonitor.on('suspend', () => {
+    void taskCompanion.suspend().catch(() => {});
     void persistStats().catch((error) => void logger?.write('warn', 'persist-stats-on-suspend-failed', { message: error instanceof Error ? error.message : String(error) }));
   });
   powerMonitor.on('resume', () => {
     // 睡眠期间 setTimeout 被暂停：唤醒后重算全部提醒的调度，避免丢失或延迟爆发
     sessionStartedAt = Date.now();
     reminders.forEach(scheduleReminder);
+    tickCompanion();
     void logger?.write('info', 'system-resumed', { rescheduledReminders: reminders.length });
   });
   restartTypingListener();
@@ -1056,16 +1210,17 @@ app.on('before-quit', (event) => {
   globalShortcut.unregisterAll();
   if (activityTimer) clearInterval(activityTimer);
   if (decayTimer) clearInterval(decayTimer);
+  if (companionTimer) clearInterval(companionTimer);
+  petBubble.destroy();
   if (walkTimer) clearTimeout(walkTimer);
   stopWalk();
-  stopPomodoro();
   if (clickThroughResumeTimer) clearTimeout(clickThroughResumeTimer);
   for (const timer of reminderTimers.values()) clearTimeout(timer);
   reminderTimers.clear();
   if (quitPersisting || !stats) return;
   event.preventDefault();
   quitPersisting = true;
-  void persistStats()
+  void Promise.all([persistStats(), taskCompanion?.suspend()])
     .catch((error) => logger?.write('error', 'persist-stats-on-quit-failed', { message: error instanceof Error ? error.message : String(error) }))
     .finally(() => app.exit(0));
 });
