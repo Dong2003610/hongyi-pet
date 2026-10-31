@@ -31,6 +31,7 @@
 
 清单联动的使用说明与分阶段计划见 [docs/task-list-integration.md](docs/task-list-integration.md)。
 新闻来源、缓存和推送行为见 [docs/news-briefing.md](docs/news-briefing.md)。
+从 1.1.0 起支持 Windows 便携版一键更新：新版气泡与音效提示、下载并重启、启动失败回滚，配置和聊天记录保留。使用和正式发布流程见 [docs/auto-update.md](docs/auto-update.md)。
 
 ## 目录结构
 
