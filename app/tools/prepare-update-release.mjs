@@ -1,0 +1,23 @@
+import { readFile, copyFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+
+const root = process.cwd();
+const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+const spec = JSON.parse(await readFile(path.join(root, 'pet-spec.json'), 'utf8'));
+if (!/^\d+\.\d+\.\d+$/.test(pkg.version) || pkg.version !== spec.app.version) throw new Error('Package and pet versions must match');
+if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${pkg.version}`) throw new Error('Release tag does not match package version');
+const release = path.join(root, 'release');
+const manifest = JSON.parse(await readFile(path.join(release, 'manifest.json'), 'utf8'));
+if (manifest.platform !== 'win32' || manifest.arch !== 'x64' || manifest.version !== pkg.version) throw new Error('Updater only accepts a matching-version Windows x64 portable release');
+const zip = manifest.artifacts.find(a => a.kind === 'zip');
+if (!zip || zip.file !== path.basename(zip.file)) throw new Error('Portable ZIP missing');
+const bytes = await readFile(path.join(release, zip.file));
+const sha256 = createHash('sha256').update(bytes).digest('hex');
+if (sha256 !== zip.sha256 || bytes.length !== zip.bytes) throw new Error('Portable release checksum mismatch');
+const name = `hongyi-pet-win32-x64-v${pkg.version}.zip`;
+await copyFile(path.join(release, zip.file), path.join(release, name));
+const notes = (await readFile(path.join(root, 'RELEASE_NOTES.md'), 'utf8')).slice(0, 4000);
+const update = { schema: 1, version: pkg.version, notes, windows: { name, size: bytes.length, sha256 } };
+await writeFile(path.join(release, 'update-manifest.json'), JSON.stringify(update, null, 2) + '\n');
+console.log(`Prepared updater release v${pkg.version}: ${name} (${bytes.length} bytes)`);
