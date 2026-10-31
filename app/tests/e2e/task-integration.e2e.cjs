@@ -74,6 +74,9 @@ async function main() {
     }));
     await Promise.all([
       compile({ ...require('../../webpack.main.config.js'), mode: 'development', context: root, output: { path: directory, filename: 'main.cjs', publicPath: directory.replace(/\\/g, '/') + '/' }, plugins: [
+        // Capture only the autonomous 18–40s scheduler; exercise its real
+        // callback deterministically without changing production timing.
+        new webpack.BannerPlugin({ raw: true, banner: `(()=>{const originalTimeout=globalThis.setTimeout;globalThis.setTimeout=(callback,delay,...args)=>{if(delay>=18000&&delay<=40000)globalThis.__testPatrol=callback;return originalTimeout(callback,delay,...args)}})();` }),
         new webpack.BannerPlugin({ raw: true, banner: `(()=>{const originalFetch=globalThis.fetch.bind(globalThis);globalThis.fetch=async(input,init)=>{const value=typeof input==='string'?input:input.url;const url=new URL(value);if(['www.ithome.com','www.solidot.org','openai.com','www.cnbc.com','www.federalreserve.gov','www.ecb.europa.eu','www.un.org'].includes(url.hostname)){const now=new Date().toUTCString();return new Response('<rss><channel>'+[0,1,2].map(i=>'<item><title>'+url.hostname+' 测试新闻 '+i+'</title><link>https://'+url.hostname+'/test/article-'+i+'</link><description>本地模拟摘要 '+i+'</description><pubDate>'+now+'</pubDate></item>').join('')+'</channel></rss>',{headers:{'Content-Type':'application/rss+xml'}})}if(['127.0.0.1','localhost','[::1]'].includes(url.hostname))return originalFetch(input,init);throw new Error('E2E external network blocked: '+url.hostname)}})();` }),
         new webpack.DefinePlugin(definitions), new webpack.NormalModuleReplacementPlugin(/task-list-public\.json$/, fixture)] }),
       compile({ mode: 'development', context: root, target: 'electron-preload', entry: path.join(root, 'src/preload.ts'), output: { path: directory, filename: 'preload.cjs' }, module: { rules: [{ test: /\.ts$/, exclude: /node_modules/, use: 'ts-loader' }] }, resolve: { extensions: ['.ts', '.js'] } }),
@@ -96,9 +99,70 @@ async function main() {
     await dashboard.waitForFunction(() => Boolean(window.petAPI && document.querySelector('#task-companion .task-tools')));
     const initial = await pet.evaluate(() => window.__petE2E.snapshot());
     assert.equal(initial.roles.length, 3); assert.equal(initial.tray, true);
+    assert.equal(await pet.evaluate(() => window.petAPI.updates.status().then(() => false, () => true)), true, 'pet renderer cannot install or configure updates');
+    assert.equal((await dashboard.evaluate(() => window.petAPI.updates.status())).phase, 'unsupported', 'isolated source integration never invokes a real update');
+    assert.equal(await dashboard.evaluate(() => window.petAPI.updates.apply().then(() => false, () => true)), true, 'dev/E2E installation is blocked');
     assert.equal(await pet.evaluate(() => window.petAPI.taskList.status().then(() => false, () => true)), true, 'pet has no task credential IPC access');
     assert.equal(await pet.evaluate(() => window.petAPI.news.status().then(() => false, () => true)), true, 'main denies pet-role news IPC access');
     assert.equal((await dashboard.evaluate(() => window.petAPI.taskList.status())).connected, false);
+    assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().includes('/pet_window/')).webContents.getBackgroundThrottling()), false, 'pet animation remains active while unfocused');
+    const petPose = () => pet.evaluate(() => ({ state: document.querySelector('#pet-container').dataset.state, frame: document.querySelector('#pet-sprite').src }));
+    for (const direction of [-1, 1]) {
+      const before = await application.evaluate(({ BrowserWindow, screen }, direction) => {
+        const win = BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/'));
+        const bounds = win.getBounds(), area = screen.getDisplayMatching(bounds).workArea;
+        win.setPosition(Math.round(area.x + area.width / 2 - bounds.width / 2), bounds.y);
+        win.webContents.send('state:activity', { kind: 'interaction', stateId: 'sleep', durationMs: 15000 });
+        const initial = win.getBounds(); const random = Math.random;
+        try { Math.random = () => direction < 0 ? .25 : .75; globalThis.__testPatrol(); } finally { Math.random = random; }
+        return initial;
+      }, direction);
+      await pet.waitForFunction(state => document.querySelector('#pet-container').dataset.state === state, direction < 0 ? 'walk-left' : 'walk-right');
+      const frames = new Set();
+      for (let i = 0; i < 6; i++) {
+        const pose = await petPose(); assert.equal(pose.state, direction < 0 ? 'walk-left' : 'walk-right'); frames.add(pose.frame);
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      assert.ok(frames.size >= 4, 'real patrol changes walking frames, not a standing glide');
+      const moved = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/')).getBounds());
+      assert.ok((moved.x - before.x) * direction > 0, 'window moves in the same direction as the walking pose');
+      await pet.waitForFunction(() => document.querySelector('#pet-container').dataset.state === 'idle');
+    }
+    // A new interaction interrupts both the window movement and the walk pose.
+    await application.evaluate(() => { globalThis.__testPatrol(); });
+    await pet.waitForFunction(() => /walk-/.test(document.querySelector('#pet-container').dataset.state));
+    await pet.evaluate(() => window.petAPI.interactions.trigger('feed-snack'));
+    const stopped = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/')).getBounds());
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert.deepEqual(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/')).getBounds()), stopped, 'interacting with the pet stops patrol translation');
+    // Exercise the actual "let her walk" IPC, including restarting before the
+    // previous walk finishes and starting again after it has fully stopped.
+    await application.evaluate(({ BrowserWindow, screen }) => {
+      const win = BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/'));
+      const area = screen.getDisplayMatching(win.getBounds()).workArea;
+      win.setPosition(area.x + 24, win.getBounds().y);
+    });
+    await pet.evaluate(() => window.petAPI.interactions.trigger('take-walk'));
+    await pet.waitForFunction(() => document.querySelector('#pet-container').dataset.state === 'walk-right');
+    await new Promise(resolve => setTimeout(resolve, 900));
+    await pet.evaluate(() => window.petAPI.interactions.trigger('take-walk'));
+    const secondStart = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/')).getBounds());
+    const repeatedFrames = new Set();
+    for (let i = 0; i < 17; i++) {
+      const pose = await petPose();
+      assert.equal(pose.state, 'walk-right', 'the second real walk never falls back to standing at the first deadline');
+      repeatedFrames.add(pose.frame); await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    assert.equal(repeatedFrames.size, 5, 'repeated real walking cycles all five approved frames');
+    const secondEnd = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/pet_window/')).getBounds());
+    assert.ok(secondEnd.x > secondStart.x, 'second walking animation accompanies actual translation');
+    await pet.waitForFunction(() => document.querySelector('#pet-container').dataset.state === 'idle');
+    await pet.evaluate(() => window.petAPI.interactions.trigger('take-walk'));
+    await pet.waitForFunction(() => document.querySelector('#pet-container').dataset.state === 'walk-right');
+    const afterCompleteFrame = (await petPose()).frame;
+    await new Promise(resolve => setTimeout(resolve, 200));
+    assert.notEqual((await petPose()).frame, afterCompleteFrame, 'walking after a completed walk still animates');
+    await pet.evaluate(() => window.petAPI.interactions.trigger('feed-snack'));
     assert.deepEqual(await dashboard.evaluate(() => window.petAPI.news.status().then(value => value.preferences)), { enabled: false, time: '09:00' }, 'daily news push is disabled by default');
     assert.equal(await dashboard.evaluate(() => window.petAPI.news.open('https://evil.example/article').then(() => false, () => true)), true, 'news links reject untrusted hosts');
 
