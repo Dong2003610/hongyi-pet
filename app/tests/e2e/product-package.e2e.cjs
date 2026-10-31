@@ -1,7 +1,8 @@
 // Smoke the actual extracted portable executable with an isolated empty profile.
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
-const { mkdtemp, readFile, rm, writeFile } = require('node:fs/promises');
+const { mkdtemp, mkdir, readFile, rm, writeFile } = require('node:fs/promises');
+const { randomBytes } = require('node:crypto');
 const { createServer } = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -10,11 +11,15 @@ const { chromium } = require('playwright');
 async function main() {
   const executable = path.resolve(process.argv[2]);
   const profile = await mkdtemp(path.join(os.tmpdir(), 'hongyi-product-package-'));
+  const updateToken = randomBytes(16).toString('hex');
+  const updateJob = path.join(profile, 'updates', updateToken);
+  await mkdir(updateJob, { recursive: true });
+  await writeFile(path.join(updateJob, 'plan.json'), JSON.stringify({ id: updateToken, version: '1.1.0', target: path.dirname(executable), exe: path.basename(executable) }));
   const server = createServer(); await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port; await new Promise((resolve) => server.close(resolve));
   const environment = { ...process.env, PET_E2E: '1', PET_E2E_USER_DATA: profile };
   delete environment.ELECTRON_RUN_AS_NODE;
-  const child = spawn(executable, [`--remote-debugging-port=${port}`], { env: environment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(executable, [`--remote-debugging-port=${port}`, `--pet-update-token=${updateToken}`], { env: environment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = ''; child.stdout.on('data', (data) => { output += data; }); child.stderr.on('data', (data) => { output += data; });
   let browser;
   try {
@@ -35,6 +40,11 @@ async function main() {
     assert.ok(pet && dashboard);
     await pet.waitForFunction(() => window.petAPI && document.querySelector('#pet-sprite').naturalWidth > 0);
     await dashboard.waitForFunction(() => window.petAPI && document.querySelector('#task-companion .focus-state'));
+    let health;
+    for (let i = 0; i < 100; i++) {
+      try { health = JSON.parse(await readFile(path.join(updateJob, 'healthy.json'), 'utf8')); break; } catch { await new Promise(resolve => setTimeout(resolve, 100)); }
+    }
+    assert.deepEqual(health, { id: updateToken, version: '1.1.0' }, 'real packaged app confirms all renderers ready for updater');
     await pet.locator('#pet-container').dispatchEvent('dblclick');
     await dashboard.waitForFunction(() => document.body.classList.contains('quick-chat'));
     await dashboard.getByRole('button', { name: '关闭窗口', exact: true }).click();
@@ -56,6 +66,9 @@ async function main() {
     await dashboard.evaluate(() => window.petAPI.taskList.focus({ action: 'stop' }));
     await dashboard.locator('[data-open-nav="settings"]').first().click();
     await dashboard.locator('#ai-base-url').waitFor({ state: 'visible' });
+    await dashboard.locator('#app-updates').waitFor({ state: 'visible' });
+    assert.match(await dashboard.locator('#update-version').textContent(), /1\.1\.0/);
+    assert.equal((await dashboard.evaluate(() => window.petAPI.updates.status())).phase, 'unsupported', 'packaged E2E mode never starts a real download');
     const exited = new Promise((resolve) => child.once('exit', resolve));
     await pet.evaluate(() => window.__petE2E.quit());
     await Promise.race([exited, new Promise((_, reject) => setTimeout(() => reject(new Error('Packaged app did not quit')), 10000))]);
@@ -63,7 +76,7 @@ async function main() {
     assert.ok(saved.some((message) => message.source === 'task'));
     const report = { status: 'pass', executable, timestamp: new Date().toISOString(), checks: ['asar startup and pet assets', 'double-click quick chat', 'close and reopen quick chat', 'close and reopen full dashboard', 'real chat focus IPC', 'quick-to-full button', 'two primary tabs', 'pause and stop', 'AI configuration surface', 'persistent task receipts', 'graceful exit'], isolatedProfile: true, realAccountUsed: false };
     await writeFile(path.resolve('qa/product-package-smoke.json'), JSON.stringify(report, null, 2) + '\n');
-    console.log('Portable product smoke: PASS (actual extracted ZIP, isolated profile, no real account).');
+    console.log('Portable product smoke: PASS (actual extracted ZIP, updater startup health confirmation, isolated profile, no real account).');
   } finally {
     await browser?.close().catch(() => {});
     if (child.exitCode === null) child.kill();
