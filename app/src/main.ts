@@ -32,6 +32,7 @@ import { normalizeTaskName } from './main/task-targets';
 import { NewsService, newsUrl } from './main/news';
 import { AppUpdateService } from './main/update-service';
 import { PortableUpdate } from './main/portable-update';
+import { updateFetch } from './main/update-network';
 
 const spec = specData as PetSpec;
 type Role = 'pet' | 'reminder' | 'dashboard';
@@ -1173,6 +1174,7 @@ async function initialize(): Promise<void> {
   portableUpdate = new PortableUpdate({ executable: process.execPath, userData: app.getPath('userData'), oldPid: process.pid, version: spec.app.version,
     forbidden: [app.getPath('home'), app.getPath('desktop'), app.getPath('documents'), app.getPath('downloads'), app.getPath('appData')] });
   updates = new AppUpdateService({ version: spec.app.version, supported: app.isPackaged && process.platform === 'win32' && process.arch === 'x64' && !e2eMode,
+    fetch: updateFetch,
     directory: userFile('updates'), load: async () => { try { return JSON.parse(await readFile(userFile('update-settings.json'), 'utf8')); } catch { return null; } },
     save: value => atomicWriteJson(userFile('update-settings.json'), value), prepare: (archive, release, id) => portableUpdate.prepare(archive, release, id), discard: id => portableUpdate.discard(id),
     changed: value => { if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('updates:status', value); createTrayMenuRefresh(); },
