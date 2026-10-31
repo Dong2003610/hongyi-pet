@@ -1,7 +1,7 @@
 {
   "name": "com-hongyi-desktop-pet",
   "productName": "小红桌宠",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Secure cross-platform Electron desktop pet",
   "main": ".webpack/main",
   "private": true,
@@ -9,7 +9,7 @@
     "dev": "node tools/run-dev.mjs",
     "start": "node tools/run-dev.mjs",
     "check": "tsc --noEmit && node tools/validate-dev-contract.mjs && node tools/validate-spec.mjs && node tools/validate-asset-links.mjs && node tools/qa-ui.mjs && node tools/qa-experience.mjs && node tools/qa-assets.mjs",
-    "test": "tsx --test tests/unit/state-machine.test.ts tests/unit/persistence.test.ts tests/unit/drag.test.ts tests/unit/typing-listener.test.ts tests/unit/experience.test.ts tests/unit/dev-ports.test.mjs tests/unit/pose-motion.test.ts tests/unit/interaction-replies.test.ts tests/unit/motion-assets.test.ts tests/unit/news.test.ts",
+    "test": "tsx --test tests/unit/state-machine.test.ts tests/unit/persistence.test.ts tests/unit/drag.test.ts tests/unit/typing-listener.test.ts tests/unit/experience.test.ts tests/unit/dev-ports.test.mjs tests/unit/pose-motion.test.ts tests/unit/interaction-replies.test.ts tests/unit/motion-assets.test.ts tests/unit/news.test.ts tests/unit/update-service.test.ts",
     "test:pet-ui": "node tests/e2e/pet-interaction.e2e.cjs",
     "pretest:e2e": "node tools/run-build.mjs package-host",
     "test:e2e": "tsx tests/e2e/app.e2e.ts",
@@ -33,7 +33,8 @@
     "make:mac": "node tools/run-build.mjs make-mac",
     "portable:mac": "node tools/run-build.mjs portable-mac",
     "qa:motion": "node tools/preview-motion.mjs",
-    "process:motion": "node tools/normalize-motion-assets.mjs"
+    "process:motion": "node tools/normalize-motion-assets.mjs",
+    "test:updates": "node tests/e2e/update-helper.e2e.cjs"
   },
   "author": "Desktop Pet Builder User",
   "license": "UNLICENSED",
