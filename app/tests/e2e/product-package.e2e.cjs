@@ -68,7 +68,7 @@ async function main() {
     await dashboard.locator('[data-open-nav="settings"]').first().click();
     await dashboard.locator('#ai-base-url').waitFor({ state: 'visible' });
     await dashboard.locator('#app-updates').waitFor({ state: 'visible' });
-    assert.match(await dashboard.locator('#update-version').textContent(), /1\.1\.0/);
+    assert.ok((await dashboard.locator('#update-version').textContent()).includes(`当前版本 ${version}`));
     assert.equal((await dashboard.evaluate(() => window.petAPI.updates.status())).phase, 'unsupported', 'packaged E2E mode never starts a real download');
     const exited = new Promise((resolve) => child.once('exit', resolve));
     await pet.evaluate(() => window.__petE2E.quit());
