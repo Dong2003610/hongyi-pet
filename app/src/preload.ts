@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { ChatMessage, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
+import type { AppUpdateStatus, ChatMessage, InteractionResult, InteractionSpec, PetAPI, PetStats, Reminder, RuntimeFailureReport, RuntimeReadyReport, Settings, StateActivity, TypingStatus } from './shared/contracts';
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -8,6 +8,13 @@ function subscribe<T>(channel: string, listener: (value: T) => void): () => void
 }
 
 const api: PetAPI = {
+  updates: {
+    status: () => ipcRenderer.invoke('updates:status'),
+    check: () => ipcRenderer.invoke('updates:check'),
+    configure: input => ipcRenderer.invoke('updates:configure', input),
+    apply: () => ipcRenderer.invoke('updates:apply'),
+    cancel: () => ipcRenderer.invoke('updates:cancel'),
+  },
   news: {
     status: () => ipcRenderer.invoke('news:status'),
     configure: (input) => ipcRenderer.invoke('news:configure', input),
@@ -89,6 +96,8 @@ const api: PetAPI = {
     fail: (report: RuntimeFailureReport) => ipcRenderer.invoke('runtime:fail', report) as Promise<void>,
   },
   events: {
+    onUpdate: listener => subscribe<AppUpdateStatus>('updates:status', listener),
+    onUpdateOpen: listener => subscribe<void>('updates:open', listener),
     onNews: (listener) => subscribe<ChatMessage>('news:briefing', listener),
     onStateActivity: (listener) => subscribe<StateActivity>('state:activity', listener),
     onReminder: (listener) => subscribe<Reminder>('reminder:due', listener),
