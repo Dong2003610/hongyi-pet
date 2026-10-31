@@ -61,6 +61,13 @@ async function main() {
       let focus = { phase: 'idle', seconds: 0, remaining: 0 };
       window.planCalls = 0;
       window.petAPI = {
+        updates: {
+          status: async () => window.mockUpdate,
+          check: async () => window.mockUpdate,
+          configure: async input => { if (window.updateSaveError) throw new Error('fixture settings save failed'); Object.assign(window.mockUpdate, input); return window.mockUpdate; },
+          apply: async () => { window.updateApplyCount = (window.updateApplyCount || 0) + 1; Object.assign(window.mockUpdate, { phase: 'downloading', progress: 37, message: '正在下载更新' }); window.emitUpdate(window.mockUpdate); return new Promise((resolve, reject) => { window.finishUpdate = reject; }); },
+          cancel: async () => { Object.assign(window.mockUpdate, { phase: 'available', message: '已取消下载，当前版本继续运行' }); window.emitUpdate(window.mockUpdate); window.finishUpdate?.(new Error('canceled')); },
+        },
         settings: { get: async () => ({ petScale: 0.8, soundEnabled: true }), update: async () => ({}) },
         interactions: { list: async () => [], stats: async () => ({ affection: 10, mood: 90, todayInteractions: 2, companionMinutes: 20 }) },
         reminders: { list: async () => [] },
@@ -101,8 +108,40 @@ async function main() {
           openWebsite: async () => { window.websiteOpened = true; },
         },
       };
+      window.mockUpdate = { phase: 'available', currentVersion: '1.1.0', latestVersion: '1.2.0', notes: '<img src=x onerror=alert(1)> 更新说明', message: '发现新版本 1.2.0', autoCheck: true, useMirror: true };
+      window.petAPI.events.onUpdate = callback => { window.emitUpdate = callback; };
+      window.petAPI.events.onUpdateOpen = callback => { window.openUpdates = callback; };
     });
     await page.goto(pathToFileURL(htmlFile).href);
+    await page.locator('#update-badge').waitFor({ state: 'visible' });
+    await page.locator('#update-badge').click();
+    await page.locator('#update-check').waitFor({ state: 'visible' });
+    assert.match(await page.locator('#update-notes').textContent(), /<img/);
+    assert.equal(await page.locator('#update-notes img').count(), 0, 'release notes are plain text');
+    await page.locator('#update-auto').uncheck();
+    await page.evaluate(() => window.emitUpdate({ ...window.mockUpdate, message: '状态刷新' }));
+    assert.equal(await page.locator('#update-auto').isChecked(), false, 'update status does not overwrite unsaved settings');
+    await page.evaluate(() => { window.updateSaveError = true; });
+    await page.locator('#update-preferences button').click();
+    await page.waitForFunction(() => document.querySelector('#update-message').textContent.includes('保存失败'));
+    assert.equal(await page.locator('#update-auto').isChecked(), false);
+    await page.evaluate(() => { window.updateSaveError = false; });
+    await page.locator('#update-preferences button').click();
+    await page.waitForFunction(() => document.querySelector('#update-message').textContent.includes('已保存'));
+    await page.locator('#update-apply').click();
+    await page.locator('#update-cancel').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#update-progress').evaluate(node => node.value), 37);
+    assert.equal(await page.locator('#update-apply').isDisabled(), true, 'cannot launch duplicate installs');
+    await page.locator('#update-cancel').click();
+    await page.waitForFunction(() => !document.querySelector('#update-apply').disabled);
+    assert.equal(await page.evaluate(() => window.updateApplyCount), 1);
+    for (const width of [320, 380, 480]) {
+      await page.setViewportSize({ width, height: 660 });
+      assert.equal(await page.locator('#app-updates').evaluate(node => node.scrollWidth <= node.clientWidth + 1), true, 'updater fits compact widths');
+    }
+    await page.setViewportSize({ width: 520, height: 700 });
+    await mkdir(path.join(root, 'qa'), { recursive: true });
+    await page.screenshot({ path: path.join(root, 'qa', 'app-updates.png') });
     await page.locator('[data-tab="tasks"]').click();
     assert.equal(await page.locator('#task-login-form').isVisible(), false, 'login does not occupy the task page');
     await page.locator('#task-account-button').click();
