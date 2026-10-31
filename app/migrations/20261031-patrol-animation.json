@@ -1,0 +1,26 @@
+{
+  "id": "20261031-patrol-animation",
+  "description": "Keep autonomous patrol and walking animation synchronized: authoritative move start/stop overrides prior pose, stopping at the screen edge or duration restores idle, non-move activity and dragging stop translation, and the pet window keeps animation active while unfocused. Uses existing left/right artwork and timing.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "af8abf541d9510552bc1d0a88266325a6d88de9d9edc77ada888cfd904b35735",
+      "to": "b4f560facd7897b447cd504a6d5d06078f341b6ece66c8cfe589798fd8a5628c"
+    },
+    {
+      "file": "src/renderer/pet/index.ts",
+      "from": "71b580c6df8f03837b6ffd3e0c5bffec0d052cc136c8bef49f42f8cb7b7b1b71",
+      "to": "7bc281ac1593c46bc357f91acc4347323ca692f891a5c12478f46a309b9dae88"
+    }
+  ],
+  "validation": [
+    "TypeScript noEmit",
+    "142 unit tests passed",
+    "pet-interaction.e2e.cjs: both move directions override sleep and cycle five walking frames; explicit stop restores idle",
+    "task-integration.e2e.cjs: real autonomous scheduler callback, both directions, window translation plus frame cycling, background throttling disabled, and interaction interrupts translation",
+    "preflight.mjs",
+    "validate-dev-contract.mjs"
+  ]
+}
