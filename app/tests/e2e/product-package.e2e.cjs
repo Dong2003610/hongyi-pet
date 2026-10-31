@@ -7,6 +7,7 @@ const { createServer } = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const version = require('../../package.json').version;
 
 async function main() {
   const executable = path.resolve(process.argv[2]);
@@ -14,7 +15,7 @@ async function main() {
   const updateToken = randomBytes(16).toString('hex');
   const updateJob = path.join(profile, 'updates', updateToken);
   await mkdir(updateJob, { recursive: true });
-  await writeFile(path.join(updateJob, 'plan.json'), JSON.stringify({ id: updateToken, version: '1.1.0', target: path.dirname(executable), exe: path.basename(executable) }));
+  await writeFile(path.join(updateJob, 'plan.json'), JSON.stringify({ id: updateToken, version, target: path.dirname(executable), exe: path.basename(executable) }));
   const server = createServer(); await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port; await new Promise((resolve) => server.close(resolve));
   const environment = { ...process.env, PET_E2E: '1', PET_E2E_USER_DATA: profile };
@@ -44,7 +45,7 @@ async function main() {
     for (let i = 0; i < 100; i++) {
       try { health = JSON.parse(await readFile(path.join(updateJob, 'healthy.json'), 'utf8')); break; } catch { await new Promise(resolve => setTimeout(resolve, 100)); }
     }
-    assert.deepEqual(health, { id: updateToken, version: '1.1.0' }, 'real packaged app confirms all renderers ready for updater');
+    assert.deepEqual(health, { id: updateToken, version }, 'real packaged app confirms all renderers ready for updater');
     await pet.locator('#pet-container').dispatchEvent('dblclick');
     await dashboard.waitForFunction(() => document.body.classList.contains('quick-chat'));
     await dashboard.getByRole('button', { name: '关闭窗口', exact: true }).click();
