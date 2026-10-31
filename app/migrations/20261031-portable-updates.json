@@ -1,0 +1,52 @@
+{
+  "id": "20261031-portable-updates",
+  "description": "Windows portable v1.1.0 updates with release detection, user-controlled verified download, isolated helper, full directory replacement, renderer-ready health confirmation and rollback; version bump and dashboard IPC. Preserve data directory and existing build gates.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "package.json",
+      "from": "e82b0ac89e33c5674fb1df92402ba4b53f76a3f058bfe464ca9de8f57db12f92",
+      "to": "4db45c94daa27ea712d35c6dbf8935fe0c99c22cffa19032cc962af9274b56b9"
+    },
+    {
+      "file": "package-lock.json",
+      "from": "b9a3b940262d80e8ba369b2a024e3752587b41094c50f44cb102398c6acfe135",
+      "to": "05358c8da26ce70d1ba064d35f6fa8e6053c9dd5cf47693e8de56aa1da756fec"
+    },
+    {
+      "file": "pet-spec.json",
+      "from": "c86c3c099bd4819719fc6c019b411d84ce010c02440323bd04d396125a0f0961",
+      "to": "1df8a28e82aa1c96724c93fb2e7a29e5e82fa627d0a2a872207613933077218a"
+    },
+    {
+      "file": "src/main.ts",
+      "from": "b4f560facd7897b447cd504a6d5d06078f341b6ece66c8cfe589798fd8a5628c",
+      "to": "06eb95c734fba983440590b2ab45ab8d0e574ef2e078d7581c69469be6cc6840"
+    },
+    {
+      "file": "src/preload.ts",
+      "from": "074186fd56dad6858d26c2a6650ba23d86eaf4c4590366b0b8698c1b81b7d761",
+      "to": "3bb5aaa4cdb2a9992f6fab29a691fabfd04ad2247c6ad415ded748fbabccb598"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "b47cb1535188717200207e265010283dd20914c994cf25a42cb47439b51cc179",
+      "to": "2aee4192ebbaef6c930ff06bfaf4cc1548b1a856af805faa5526f6c416a87d03"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "7f4205f430dd60d9e473e1442f773cd0eade2296a7b03c7b7dacc1e3e82ad3b3",
+      "to": "b21a333db5615719bfa10d4a1cd29e7fef1a50b9a1fcef32fc30a6d759c2136f"
+    }
+  ],
+  "validation": [
+    "TypeScript noEmit",
+    "152 unit tests",
+    "dashboard update UI E2E",
+    "Windows helper replacement and rollback E2E",
+    "real packaged startup health confirmation",
+    "preflight.mjs",
+    "validate-dev-contract.mjs"
+  ]
+}
