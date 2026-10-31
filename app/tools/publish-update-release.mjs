@@ -38,6 +38,8 @@ async function request(endpoint, method = 'GET', body, allowed404 = false) {
 const tag = `v${pkg.version}`;
 const head = (await request('git/ref/heads/main')).object.sha;
 let release = await request(`releases/tags/${tag}`, 'GET', undefined, true);
+// GitHub may not resolve a draft by tag until that tag exists.
+if (!release) release = (await request('releases?per_page=100')).find(value => value.tag_name === tag);
 console.log(JSON.stringify({ apply, tag, head, bytes: archive.length, sha256: digest(archive), existing: release ? { id: release.id, draft: release.draft } : null }));
 if (!apply) process.exit(0);
 const verified = JSON.parse(await fs.readFile(path.join(root, '.build/contents-publish/verified.json'), 'utf8'));
