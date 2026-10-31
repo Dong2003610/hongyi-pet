@@ -1,0 +1,21 @@
+{
+  "id": "20261031-repeat-walk-animation",
+  "description": "Explicit activity commands restart a same-name resume state with a fresh animation deadline. Implicit repeats retain resume behavior. This prevents a second walking request from keeping the first walk's expiry while its window movement restarts.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/renderer/pet/state-machine.ts",
+      "from": "a4aa2c3c050bd82c35d89d8941dba6beceb643e4a75d502d2c37a0e334daf657",
+      "to": "b0cbfce5c25af972b756b799eec630638bb183a34f44e305af4a243bcf772de6"
+    }
+  ],
+  "validation": [
+    "State-machine regression reproduces failure before the fix and passes afterwards",
+    "TypeScript noEmit",
+    "pet-interaction.e2e.cjs: repeated same-direction walk cycles five frames past the first deadline",
+    "task-integration.e2e.cjs: actual take-walk IPC twice while active, plus restarting after completion",
+    "preflight.mjs",
+    "validate-dev-contract.mjs"
+  ]
+}
