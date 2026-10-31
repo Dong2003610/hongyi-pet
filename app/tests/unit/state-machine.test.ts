@@ -59,3 +59,17 @@ test('cooldown starts when an activity completes', () => {
   assert.equal(machine.start('action', 399), false);
   assert.equal(machine.start('action', 400), true);
 });
+
+test('a second explicit walk restarts its full duration instead of resuming the first deadline', () => {
+  const walk = state('walk-right', { loop: true, priority: 60, interrupt: 'resume' });
+  const machine = new PetStateMachine([idle, walk], 0);
+  assert.equal(machine.start('walk-right', 0, 3000, true), true);
+  assert.equal(machine.tick(2300).stateId, 'walk-right');
+  // Implicit duplicate requests retain normal resume semantics.
+  assert.equal(machine.start('walk-right', 2300, 3000), false);
+  // A user pressing walk again is an explicit new activity.
+  assert.equal(machine.start('walk-right', 2300, 3000, true), true);
+  assert.equal(machine.tick(3001).stateId, 'walk-right', 'the old deadline cannot end the new walk');
+  assert.equal(machine.tick(5299).stateId, 'walk-right');
+  assert.equal(machine.tick(5300).stateId, 'idle');
+});
