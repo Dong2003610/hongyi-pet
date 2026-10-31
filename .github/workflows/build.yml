@@ -37,6 +37,9 @@ jobs:
       - name: Verify Windows rollback helper
         run: npm run test:updates
 
+      - name: Verify Chromium update transport
+        run: node tests/e2e/update-network.e2e.cjs
+
       - name: Build portable package
         run: npm run portable:win
 
