@@ -297,7 +297,9 @@ window.petAPI?.events.onStateActivity((activity: StateActivity) => {
   if (activity.kind === 'interaction') acceptInteractionReply = true;
   else if (activity.stateId && activity.kind !== 'move') acceptInteractionReply = false;
   if (activity.stateId && !isDragging) {
-    const force = activity.kind === 'interaction' || activity.kind === 'notify';
+    // Main owns autonomous movement: its start/stop must also own the pose,
+    // including when an earlier high-priority activity is still playing.
+    const force = activity.kind === 'interaction' || activity.kind === 'notify' || activity.kind === 'move';
     setState(activity.stateId, activity.durationMs, force);
     scheduleIdleEvents();
   }
