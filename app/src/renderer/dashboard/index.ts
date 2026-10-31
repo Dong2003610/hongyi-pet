@@ -1,6 +1,7 @@
 import spec from '../../../pet-spec.json';
 import type { ChatMessage, PetSpec, PetStats, Settings, InteractionSpec, Reminder, ReminderRepeat } from '../../shared/contracts';
 import './index.css';
+import { setupUpdates } from './updates';
 import { setupTaskList } from './task-list';
 import { setupNews } from './news';
 
@@ -491,6 +492,7 @@ document.getElementById('ai-test')!.addEventListener('click', async () => {
 
 // ── Init ──
 async function init(): Promise<void> {
+  setupUpdates(() => activateTab('settings'));
   setupNews();
   activateTab('chat');
   await loadChatHistory();
