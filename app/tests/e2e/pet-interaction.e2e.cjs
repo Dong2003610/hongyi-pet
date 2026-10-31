@@ -83,6 +83,29 @@ async function main() {
       'repeated jumps do not move or resize the Electron window');
 
     const emit = (activity) => page.evaluate((value) => window.emitActivity(value), activity);
+    for (const direction of ['walk-left', 'walk-right']) {
+      await emit({ kind: 'interaction', stateId: 'sleep', durationMs: 15000 });
+      await emit({ kind: 'move', stateId: direction, durationMs: 1800 });
+      assert.equal((await pose()).state, direction, 'autonomous movement takes over the prior pose');
+      const frames = new Set();
+      for (let i = 0; i < 10; i++) {
+        frames.add((await pose()).frame);
+        await page.clock.runFor(145);
+      }
+      assert.equal(frames.size, 5, `${direction} cycles all five poses during patrol`);
+      // Repeating the same command must not retain the first walk's deadline.
+      await emit({ kind: 'interaction', stateId: direction, durationMs: 1800 });
+      const repeatedFrames = new Set();
+      for (let i = 0; i < 8; i++) {
+        const repeated = await pose();
+        assert.equal(repeated.state, direction, 'the second walk remains animated past the first deadline');
+        repeatedFrames.add(repeated.frame);
+        await page.clock.runFor(145);
+      }
+      assert.equal(repeatedFrames.size, 5, 'the repeated walk still cycles all five poses');
+      await emit({ kind: 'move', stateId: 'idle' });
+      assert.equal((await pose()).state, 'idle', 'patrol stop immediately restores idle');
+    }
     await emit({ kind: 'interaction', stateId: 'pet', feedback: '摸摸充电中～' });
     await page.clock.runFor(3500);
     await emit({ kind: 'interaction-reply', feedback: '你带来的温柔，刚好够我开心一整天。' });
