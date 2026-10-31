@@ -1,8 +1,18 @@
 export const UPDATE_REPO = 'Dong2003610/hongyi-pet';
 export const UPDATE_BASE = `https://github.com/${UPDATE_REPO}/releases`;
 export const UPDATE_MANIFEST = `${UPDATE_BASE}/latest/download/update-manifest.json`;
+export const UPDATE_API = `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
 export const MAX_UPDATE_BYTES = 500 * 1024 * 1024;
-export interface UpdateRelease { version: string; notes: string; name: string; size: number; sha256: string; url: string }
+export interface UpdateRelease { version: string; notes: string; name: string; size: number; sha256: string; url: string; apiUrl?: string }
+export function parseGithubRelease(input: unknown): UpdateRelease {
+  const raw = input as any;
+  if (raw?.draft || raw?.prerelease || typeof raw?.tag_name !== 'string' || !raw.tag_name.startsWith('v') || !Array.isArray(raw.assets)) throw new Error('正式版本信息无效');
+  const version = raw.tag_name.slice(1), name = `hongyi-pet-win32-x64-v${version}.zip`;
+  const asset = raw.assets.find((value: any) => value.name === name && value.state === 'uploaded');
+  if (!asset || !Number.isSafeInteger(asset.id) || asset.id < 1 || typeof asset.digest !== 'string' || !asset.digest.startsWith('sha256:')) throw new Error('正式更新包缺少校验信息');
+  const release = parseUpdateManifest({ schema: 1, version, notes: raw.body, windows: { name, size: asset.size, sha256: asset.digest.slice(7) } });
+  return { ...release, apiUrl: `https://api.github.com/repos/${UPDATE_REPO}/releases/assets/${asset.id}` };
+}
 export function versionParts(value: unknown): number[] | undefined {
   if (typeof value !== 'string' || !/^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/.test(value)) return;
   return value.split('.').map(Number);
@@ -23,6 +33,7 @@ export function updateUrlAllowed(raw: string): boolean {
   try {
     const url = new URL(raw); if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
     if (['release-assets.githubusercontent.com', 'objects.githubusercontent.com'].includes(url.hostname)) return true;
+    if (url.hostname === 'api.github.com') return url.pathname === `/repos/${UPDATE_REPO}/releases/latest` || new RegExp(`^/repos/${UPDATE_REPO}/releases/assets/[1-9][0-9]*$`).test(url.pathname);
     const prefix = `/${UPDATE_REPO}/releases/`;
     if (url.hostname === 'github.com') return url.pathname.startsWith(prefix);
     if (url.hostname === 'ghfast.top') return url.pathname.startsWith(`/https://github.com${prefix}`);
@@ -33,7 +44,7 @@ export function mirrorUrl(url: string): string { return `https://ghfast.top/${ur
 export async function updateResponse(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Response> {
   for (let i = 0; i < 6; i++) {
     if (!updateUrlAllowed(url)) throw new Error('更新下载地址不受信任');
-    const response = await fetcher(url, { signal, redirect: 'manual', headers: { Accept: 'application/octet-stream, application/json' } });
+    const response = await fetcher(url, { signal, redirect: 'manual', headers: { Accept: url === UPDATE_API ? 'application/vnd.github+json' : 'application/octet-stream' } });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       await response.body?.cancel(); const location = response.headers.get('location');
       if (!location) throw new Error('更新下载重定向缺少地址'); url = new URL(location, url).href; continue;
