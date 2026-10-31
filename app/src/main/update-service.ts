@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, open, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { AppUpdateStatus } from '../shared/contracts';
-import { boundedText, mirrorUrl, newerVersion, parseUpdateManifest, UPDATE_MANIFEST, updateResponse, type UpdateRelease } from './update-feed';
+import { boundedText, mirrorUrl, newerVersion, parseGithubRelease, parseUpdateManifest, UPDATE_API, UPDATE_MANIFEST, updateResponse, type UpdateRelease } from './update-feed';
 
 interface Preferences { autoCheck: boolean; useMirror: boolean; notified?: string }
 interface Options {
@@ -55,12 +55,11 @@ export class AppUpdateService {
     this.lastAttempt = now; this.lastAutomatic = now; this.publish({ phase: 'checking', message: '正在检查新版本…' });
     this.checking = (async () => {
       try {
-        let text: string | undefined, error: unknown;
-        for (const url of this.urls(UPDATE_MANIFEST)) {
-          try { text = await boundedText(await updateResponse(url, AbortSignal.timeout(15000), this.options.fetch), 64000); break; } catch (e) { error = e; }
+        let release: UpdateRelease | undefined, error: unknown;
+        for (const url of [UPDATE_API, ...this.urls(UPDATE_MANIFEST)]) {
+          try { const raw = JSON.parse(await boundedText(await updateResponse(url, AbortSignal.timeout(15000), this.options.fetch), url === UPDATE_API ? 256000 : 64000)); release = url === UPDATE_API ? parseGithubRelease(raw) : parseUpdateManifest(raw); break; } catch (e) { error = e; }
         }
-        if (!text) throw error;
-        const release = parseUpdateManifest(JSON.parse(text));
+        if (!release) throw error;
         if (!newerVersion(release.version, this.options.version)) {
           this.release = undefined; return this.publish({ phase: 'current', latestVersion: undefined, notes: undefined, message: '已经是最新版本', checkedAt: new Date(now).toISOString() });
         }
@@ -94,7 +93,7 @@ export class AppUpdateService {
       try {
         await mkdir(directory, { recursive: true });
         let lastError: unknown, success = false;
-        for (const url of this.urls(release.url)) {
+        for (const url of this.prefs.useMirror ? [mirrorUrl(release.url), ...(release.apiUrl ? [release.apiUrl] : []), release.url] : [...(release.apiUrl ? [release.apiUrl] : []), release.url]) {
           if (controller.signal.aborted) break;
           try {
             const response = await updateResponse(url, AbortSignal.any([controller.signal, AbortSignal.timeout(180000)]), this.options.fetch);
