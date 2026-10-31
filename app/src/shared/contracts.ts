@@ -265,7 +265,19 @@ export interface TypingStatus {
   reason: string;
 }
 
+export interface AppUpdateStatus {
+  phase: 'unsupported' | 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'preparing' | 'ready' | 'installing' | 'error';
+  currentVersion: string; latestVersion?: string; notes?: string; message: string; progress?: number; checkedAt?: string;
+  autoCheck: boolean; useMirror: boolean;
+}
 export interface PetAPI {
+  updates?: {
+    status: () => Promise<AppUpdateStatus>;
+    check: () => Promise<AppUpdateStatus>;
+    configure: (input: { autoCheck: boolean; useMirror: boolean }) => Promise<AppUpdateStatus>;
+    apply: () => Promise<void>;
+    cancel: () => Promise<void>;
+  };
   news?: {
     status: () => Promise<NewsStatus>;
     configure: (input: NewsPreferences) => Promise<NewsPreferences>;
@@ -347,6 +359,8 @@ export interface PetAPI {
     fail: (report: RuntimeFailureReport) => Promise<void>;
   };
   events: {
+    onUpdate?: (listener: (status: AppUpdateStatus) => void) => () => void;
+    onUpdateOpen?: (listener: () => void) => () => void;
     onNews?: (listener: (message: ChatMessage) => void) => () => void;
     onStateActivity: (listener: (activity: StateActivity) => void) => () => void;
     onReminder: (listener: (reminder: Reminder) => void) => () => void;
