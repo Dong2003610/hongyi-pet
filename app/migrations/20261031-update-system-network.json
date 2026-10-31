@@ -1,0 +1,19 @@
+{
+  "id": "20261031-update-system-network",
+  "description": "Use Electron Chromium network stack for update HTTPS, honoring Windows system trust/proxy while keeping certificate verification independent of Node TLS environment flags.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "06eb95c734fba983440590b2ab45ab8d0e574ef2e078d7581c69469be6cc6840",
+      "to": "752a682ee1286745d42bdc1b208e59e2bcbaee80244db3338f7928d600c2d892"
+    }
+  ],
+  "validation": [
+    "TypeScript noEmit",
+    "full IPC integration",
+    "real portable startup health handshake",
+    "update-network.e2e.cjs: real Chromium redirect, stream, cancellation with local server"
+  ]
+}
