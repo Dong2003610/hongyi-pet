@@ -30,6 +30,8 @@ import { isQuiet } from './main/task-companion';
 import { carryTaskId } from './main/task-rules';
 import { normalizeTaskName } from './main/task-targets';
 import { NewsService, newsUrl } from './main/news';
+import { AppUpdateService } from './main/update-service';
+import { PortableUpdate } from './main/portable-update';
 
 const spec = specData as PetSpec;
 type Role = 'pet' | 'reminder' | 'dashboard';
@@ -57,6 +59,12 @@ let companionTimer: ReturnType<typeof setInterval> | undefined;
 let companionTickBusy = false;
 let news: NewsService;
 let newsTimer: ReturnType<typeof setInterval> | undefined;
+let updates: AppUpdateService;
+let portableUpdate: PortableUpdate;
+let updateTimer: ReturnType<typeof setInterval> | undefined;
+let updateStartupTimer: ReturnType<typeof setTimeout> | undefined;
+let updateNotificationBusy = false;
+let updateInstalling = false;
 let dashboardMode: 'quick' | 'full' = 'full';
 let fullDashboardBounds: Rect | undefined;
 const petBubble = new PetBubble(() => petWindow, process.env.PET_E2E === '1');
@@ -185,6 +193,10 @@ async function commitRuntimeReady(): Promise<void> {
   await logger?.write('info', 'runtime-ready', report);
   await writeRuntimeFile(runtimeReadyFile, report);
   runtimeCommitted = true;
+  if (portableUpdate && app.isPackaged && process.platform === 'win32') {
+    const token = process.argv.find(arg => arg.startsWith('--pet-update-token='))?.split('=')[1];
+    await portableUpdate.confirm(token);
+  }
 }
 
 async function fatalExit(event: string, error: unknown, details: Record<string, unknown> = {}): Promise<void> {
@@ -247,6 +259,8 @@ function secureWindow(options: Electron.BrowserWindowConstructorOptions, role: R
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // A desktop pet remains animated while the user works in another app.
+      backgroundThrottling: role !== 'pet',
       devTools: !app.isPackaged,
     },
   }), role);
@@ -314,8 +328,10 @@ function petWorkArea(): Electron.Rectangle {
 }
 
 function stopWalk(): void {
+  const moving = walkTick !== undefined;
   if (walkTick) clearInterval(walkTick);
   walkTick = undefined;
+  if (moving) sendActivity({ kind: 'move', stateId: 'idle' });
 }
 
 function walkPet(direction: 1 | -1, durationMs: number): void {
@@ -518,6 +534,8 @@ function broadcastStats(): void {
 }
 
 function sendActivity(activity: StateActivity): void {
+  // Never leave the window sliding after a different animation takes over.
+  if (activity.stateId && activity.kind !== 'move') stopWalk();
   if (activity.stateId) interactionReplies.cancel();
   if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send('state:activity', activity);
 }
@@ -697,6 +715,7 @@ function trayTemplate(): Electron.MenuItemConstructorOptions[] {
   const items: Electron.MenuItemConstructorOptions[] = [
     { label: visible ? '🙈 隐藏桌宠' : `🐾 显示${effectiveDisplayName()}`, click: () => { petWindow?.isVisible() ? petWindow.hide() : petWindow?.show(); } },
     { label: `🏠 ${effectiveDisplayName()}的小屋`, click: () => showDashboard() },
+    { label: updates?.status().latestVersion ? `⬇ 新版本 ${updates.status().latestVersion} · 打开更新` : '检查桌宠更新', click: () => { showDashboard(); if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('updates:open'); void updates?.check(); } },
     { label: settings.clickThrough ? '🖱️ 关闭鼠标穿透' : '🖱️ 开启鼠标穿透', click: () => void saveSettings({ ...settings, clickThrough: !settings.clickThrough }) },
   ];
   if (spec.features.filePocket) items.push({ label: '📁 打开文件口袋', click: () => void openPocket() });
@@ -838,6 +857,24 @@ async function openPocket(): Promise<void> {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('updates:status', event => { assertSender(event, ['dashboard']); return updates.status(); });
+  ipcMain.handle('updates:check', event => { assertSender(event, ['dashboard']); return updates.check(); });
+  ipcMain.handle('updates:configure', (event, input: unknown) => { assertSender(event, ['dashboard']); return updates.configure(input); });
+  ipcMain.handle('updates:cancel', event => { assertSender(event, ['dashboard']); updates.cancel(); });
+  ipcMain.handle('updates:apply', async event => {
+    assertSender(event, ['dashboard']); if (updateInstalling) return;
+    if (e2eMode || !app.isPackaged || process.platform !== 'win32' || process.arch !== 'x64') throw new Error('请在正式 Windows x64 便携版中更新');
+    updateInstalling = true;
+    try {
+      const id = await updates.download();
+      await taskCompanion.suspend(); await persistStats();
+      await portableUpdate.launch(id); updates.installing();
+      setTimeout(() => app.quit(), 150);
+    } catch (e) {
+      if (updates.status().phase === 'ready') updates.installFailed(e instanceof Error ? e.message : '更新助手未能启动');
+      throw e;
+    } finally { updateInstalling = false; }
+  });
   ipcMain.handle('news:status', (event) => { assertSender(event, ['dashboard']); return news.status(); });
   ipcMain.handle('news:configure', async (event, input: unknown) => { assertSender(event, ['dashboard']); return news.configure(input); });
   ipcMain.handle('news:open', async (event, input: unknown) => {
@@ -1069,6 +1106,7 @@ function registerIpc(): void {
     const window = role === 'pet' ? petWindow : dashboardWindow;
     if (!window) return;
     if (role === 'pet' && !spec.features.drag) return;
+    if (role === 'pet') stopWalk();
     dragSession = { bounds: window.getBounds(), cursor: screen.getCursorScreenPoint() };
   });
   ipcMain.handle('window:drag-update', (event) => {
@@ -1132,6 +1170,16 @@ async function initialize(): Promise<void> {
   await verifySourceAssetGate();
   logger = new JsonLogger(userFile('logs/app.jsonl'));
   settings = await readValidatedJson(userFile('settings.json'), defaultSettings, parseSettings);
+  portableUpdate = new PortableUpdate({ executable: process.execPath, userData: app.getPath('userData'), oldPid: process.pid, version: spec.app.version,
+    forbidden: [app.getPath('home'), app.getPath('desktop'), app.getPath('documents'), app.getPath('downloads'), app.getPath('appData')] });
+  updates = new AppUpdateService({ version: spec.app.version, supported: app.isPackaged && process.platform === 'win32' && process.arch === 'x64' && !e2eMode,
+    directory: userFile('updates'), load: async () => { try { return JSON.parse(await readFile(userFile('update-settings.json'), 'utf8')); } catch { return null; } },
+    save: value => atomicWriteJson(userFile('update-settings.json'), value), prepare: (archive, release, id) => portableUpdate.prepare(archive, release, id), discard: id => portableUpdate.discard(id),
+    changed: value => { if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.send('updates:status', value); createTrayMenuRefresh(); },
+  });
+  await updates.restore();
+  const previousUpdateFailure = await portableUpdate.previousFailure();
+  if (previousUpdateFailure) updates.startupNotice(previousUpdateFailure);
   reminders = await readValidatedJson(userFile('reminders.json'), [] as Reminder[], parseReminders);
   stats = await readValidatedJson(userFile('pet-stats.json'), defaultStats, parsePersistedStats);
   aiConfig = await loadAiConfig(app.getPath('userData'));
@@ -1229,6 +1277,27 @@ async function initialize(): Promise<void> {
   startActivityWatcher();
   startDecayLoop();
   scheduleAutonomousWalk();
+  if (app.isPackaged && !e2eMode) {
+    const checkUpdates = async () => {
+      if (isQuitting) return;
+      await updates.check(true);
+      const version = updates.notification();
+      if (!version || updateNotificationBusy || companionBusy() || companionQuiet() || isQuitting) return;
+      updateNotificationBusy = true;
+      try {
+        playSound('notify');
+        sendActivity({ kind: 'notify', stateId: 'happy', durationMs: 1800, feedback: `有新版本 ${version} 可以更新啦～打开小屋点“下载并重启”吧！` });
+        if (Notification.isSupported()) {
+          const notice = new Notification({ title: '小红有新版本啦', body: `版本 ${version} 已发布，点击打开更新。`, silent: true });
+          notice.on('click', () => { showDashboard(); dashboardWindow?.webContents.send('updates:open'); }); notice.show();
+        }
+        await updates.notified(version);
+      } catch { /* Retain pending notice for the next quiet/focus-safe scan. */ }
+      finally { updateNotificationBusy = false; }
+    };
+    updateStartupTimer = setTimeout(() => { void checkUpdates().catch(() => {}); }, 10000);
+    updateTimer = setInterval(() => { void checkUpdates().catch(() => {}); }, 60000);
+  }
 }
 
 if (hasSingleInstanceLock) {
@@ -1258,6 +1327,9 @@ app.on('before-quit', (event) => {
   if (decayTimer) clearInterval(decayTimer);
   if (companionTimer) clearInterval(companionTimer);
   if (newsTimer) clearInterval(newsTimer);
+  if (updateTimer) clearInterval(updateTimer);
+  if (updateStartupTimer) clearTimeout(updateStartupTimer);
+  updates?.cancel();
   petBubble.destroy();
   if (walkTimer) clearTimeout(walkTimer);
   stopWalk();
