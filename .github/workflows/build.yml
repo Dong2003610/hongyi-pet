@@ -32,7 +32,11 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run all unit tests
-        run: npx tsx --test tests/unit/*.test.ts tests/unit/*.test.mjs
+        shell: pwsh
+        run: |
+          $testFiles = @(Get-ChildItem -LiteralPath tests/unit -File | Where-Object { $_.Name -match '\.test\.(ts|mjs)$' } | Select-Object -ExpandProperty FullName)
+          if ($testFiles.Count -eq 0) { throw 'No unit tests found' }
+          npx tsx --test @testFiles
 
       - name: Verify Windows rollback helper
         run: npm run test:updates
@@ -54,9 +58,16 @@ jobs:
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag/package version mismatch' }
-          gh release view $env:GITHUB_REF_NAME --json tagName 2>$null
+          $draft = gh release view $env:GITHUB_REF_NAME --json isDraft --jq .isDraft 2>$null
           if ($LASTEXITCODE -eq 0) {
-            Write-Output 'Release already exists; retaining its original immutable update assets.'
+            if ($draft -eq 'true') {
+              gh release upload $env:GITHUB_REF_NAME "release/hongyi-pet-win32-x64-v$version.zip" release/update-manifest.json --clobber
+              if ($LASTEXITCODE -ne 0) { throw 'Draft asset upload failed' }
+              gh release edit $env:GITHUB_REF_NAME --draft=false --latest --notes-file RELEASE_NOTES.md
+              if ($LASTEXITCODE -ne 0) { throw 'Draft publication failed' }
+            } else {
+              Write-Output 'Release already exists; retaining its original immutable update assets.'
+            }
           } else {
             gh release create $env:GITHUB_REF_NAME "release/hongyi-pet-win32-x64-v$version.zip" release/update-manifest.json --verify-tag --title "小红桌宠 $version" --notes-file RELEASE_NOTES.md
             if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
