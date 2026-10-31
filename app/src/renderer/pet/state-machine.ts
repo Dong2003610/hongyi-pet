@@ -47,7 +47,9 @@ export class PetStateMachine {
     const next = this.states.get(stateId);
     if (!next) return false;
     if (!force && this.active.state.priority > next.priority) return false;
-    if (this.active.state.id === next.id && next.interrupt === 'resume') return false;
+    // Resume only deduplicates implicit activity updates. Explicit user/main
+    // commands must restart both the frames and their full duration.
+    if (!force && this.active.state.id === next.id && next.interrupt === 'resume') return false;
     const lastCompleted = this.completedAt.get(next.id);
     if (!force && lastCompleted !== undefined && now - lastCompleted < next.cooldownMs) return false;
     this.active = this.makeActive(next, now, durationMs);
