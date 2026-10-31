@@ -22,8 +22,8 @@
     "tools/vision-cutout.swift": "47cd7606dde925be36d2f053265c95070a4d75d0b63b516825a15bf0045a6cdf",
     "src/main/drag.ts": "d49e748f3f95cba8a97140feb824e15f2137e6dc18db8fca10f1f3f4ae4aaa35",
     "src/main/chat-replies.ts": "f2ec60ecaf3b1c6fde699b0820f607b440118d2944b9bf1126fc3dfe20888463",
-    "src/renderer/pet/state-machine.ts": "a4aa2c3c050bd82c35d89d8941dba6beceb643e4a75d502d2c37a0e334daf657",
-    "src/renderer/pet/index.ts": "71b580c6df8f03837b6ffd3e0c5bffec0d052cc136c8bef49f42f8cb7b7b1b71",
+    "src/renderer/pet/state-machine.ts": "b0cbfce5c25af972b756b799eec630638bb183a34f44e305af4a243bcf772de6",
+    "src/renderer/pet/index.ts": "7bc281ac1593c46bc357f91acc4347323ca692f891a5c12478f46a309b9dae88",
     "tests/e2e/app.e2e.ts": "549b49b032dc04bec78267f5dd8e4d31fd73bd0b5d2ad424fa9bdb0f11789ff4",
     "webpack.main.config.js": "9854a107cc89f6fa14b64eb4f039e1b1f964e2052cdad6cb2903c9855e56929e",
     "webpack.renderer.config.js": "c778f5e8e033176c201ca5714c2c62ebe52a86bf3557d7b131f5bd5d254289c9",
@@ -32,14 +32,14 @@
     "tools/process-simple.mjs": "7a26e1f68bacf831795b07b4cb71e179fc5ae75d56d8a24ad3f263ba15d0d880",
     "src/renderer/reminder/index.html": "faaf6fa2aaee05d81f5e75f19d4ed87bb1e9f9c3610d3cd048aef8a1bafb52f4",
     "src/renderer/reminder/index.ts": "93d221254e6701239e6d67f88834a7ac976461be964f43244cefdb1e8451c758",
-    "pet-spec.json": "c86c3c099bd4819719fc6c019b411d84ce010c02440323bd04d396125a0f0961",
-    "package.json": "e82b0ac89e33c5674fb1df92402ba4b53f76a3f058bfe464ca9de8f57db12f92",
-    "package-lock.json": "b9a3b940262d80e8ba369b2a024e3752587b41094c50f44cb102398c6acfe135",
-    "src/main.ts": "af8abf541d9510552bc1d0a88266325a6d88de9d9edc77ada888cfd904b35735",
-    "src/preload.ts": "074186fd56dad6858d26c2a6650ba23d86eaf4c4590366b0b8698c1b81b7d761",
-    "src/shared/contracts.ts": "b47cb1535188717200207e265010283dd20914c994cf25a42cb47439b51cc179",
+    "pet-spec.json": "1df8a28e82aa1c96724c93fb2e7a29e5e82fa627d0a2a872207613933077218a",
+    "package.json": "4db45c94daa27ea712d35c6dbf8935fe0c99c22cffa19032cc962af9274b56b9",
+    "package-lock.json": "05358c8da26ce70d1ba064d35f6fa8e6053c9dd5cf47693e8de56aa1da756fec",
+    "src/main.ts": "06eb95c734fba983440590b2ab45ab8d0e574ef2e078d7581c69469be6cc6840",
+    "src/preload.ts": "3bb5aaa4cdb2a9992f6fab29a691fabfd04ad2247c6ad415ded748fbabccb598",
+    "src/shared/contracts.ts": "2aee4192ebbaef6c930ff06bfaf4cc1548b1a856af805faa5526f6c416a87d03",
     "src/main/data-validation.ts": "d3fd0ba2a7d28f46f9ffee49ee1df98413da98d61ecaa56aaaa6deb0885eebcf",
     "src/renderer/dashboard/index.html": "2328c2d747db5bbe938c517260d086400c5228f85c97b5e798fecbac185731aa",
-    "src/renderer/dashboard/index.ts": "7f4205f430dd60d9e473e1442f773cd0eade2296a7b03c7b7dacc1e3e82ad3b3"
+    "src/renderer/dashboard/index.ts": "b21a333db5615719bfa10d4a1cd29e7fef1a50b9a1fcef32fc30a6d759c2136f"
   }
 }
