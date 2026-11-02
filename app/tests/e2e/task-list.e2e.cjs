@@ -113,6 +113,22 @@ async function main() {
       window.petAPI.events.onUpdateOpen = callback => { window.openUpdates = callback; };
     });
     await page.goto(pathToFileURL(htmlFile).href);
+    for (const tab of ['chat', 'tasks', 'interact', 'settings']) {
+      const navigation = tab === 'chat' || tab === 'tasks' ? `[data-tab="${tab}"]` : `[data-open-nav="${tab}"]`;
+      await page.locator(navigation).first().click();
+      await page.locator('#task-account-button').click();
+      assert.equal(await page.locator('#task-login-form').isVisible(), true, `account dialog is visible from ${tab}`);
+      assert.equal(await page.locator('#task-account-dialog').evaluate(dialog => dialog.parentElement === document.body && dialog.matches(':modal')), true);
+      await page.locator('#task-username').fill('dialog-check');
+      await page.locator('#task-password').fill('never-submitted');
+      if (tab === 'chat' || tab === 'interact') await page.keyboard.press('Escape');
+      else await page.locator('#task-account-close').click();
+      assert.equal(await page.locator('#task-account-dialog').evaluate(dialog => dialog.open), false);
+      await page.waitForFunction(() => document.getElementById('task-password').value === '');
+      assert.equal(await page.locator('#task-password').inputValue(), '', 'closing the dialog clears the password');
+      assert.equal(await page.locator(`#panel-${tab}`).evaluate(panel => panel.classList.contains('active')), true, 'closing preserves the current page');
+    }
+    await page.locator('[data-tab="chat"]').click();
     await page.locator('#update-badge').waitFor({ state: 'visible' });
     await page.locator('#update-badge').click();
     await page.locator('#update-check').waitFor({ state: 'visible' });

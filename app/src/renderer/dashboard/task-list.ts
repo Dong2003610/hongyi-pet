@@ -13,6 +13,9 @@ export function setupTaskList() {
   const account = el('task-account-name');
   const accountButton = el('task-account-button') as HTMLButtonElement;
   const dialog = el('task-account-dialog') as HTMLDialogElement;
+  // A modal inside an inactive tab is invisible but still blocks the whole house.
+  // Keep it at the document root; showModal() places it above every page.
+  document.body.append(dialog);
   const logout = el('task-logout') as HTMLButtonElement;
   const view = el('task-view') as HTMLSelectElement;
   const refresh = el('task-refresh') as HTMLButtonElement;

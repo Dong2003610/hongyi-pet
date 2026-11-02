@@ -325,7 +325,7 @@ html, body {
 .quick-chat .chat-suggestions button { padding: 4px 6px; font-size: 10px; }
 button:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-#panel-tasks [hidden] { display: none !important; }
+#panel-tasks [hidden], #task-account-dialog [hidden] { display: none !important; }
 #dashboard:has(#panel-tasks.active) .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
 #dashboard:has(#panel-tasks.active) .stat-item { padding: 8px 4px; }
 #dashboard:has(#panel-tasks.active) .stat-value { font-size: 15px; }
