@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { AppUpdateService } from '../../src/main/update-service';
@@ -73,7 +73,20 @@ test('mirror failure falls back to original source and reports preparation failu
   const urls: string[] = [];
   let discarded: string | undefined;
   const f = await fixture({ fetch: async url => { if (apiMiss(url)) return noApi(); urls.push(String(url)); if (String(url).includes('ghfast.top')) throw new Error('mirror down'); return String(url).endsWith('.json') ? Response.json(manifest()) : new Response(bytes); }, prepare: async () => { throw new Error('directory not writable'); }, discard: async id => { discarded = id; } });
-  try { await f.service.check(); await assert.rejects(f.service.download(), /not writable/); assert.equal(f.service.status().phase, 'error'); assert.match(discarded!, /^[a-f0-9]{32}$/); await assert.rejects(readFile(path.join(f.directory, discarded!, 'update.zip'))); assert.ok(urls.some(u => u.startsWith('https://github.com/'))); } finally { await f.cleanup(); }
+  try { await f.service.check(); await assert.rejects(f.service.download(), /not writable/); assert.equal(f.service.status().phase, 'error'); assert.match(discarded!, /^[a-f0-9]{32}$/); assert.deepEqual(await readFile(path.join(f.directory, discarded!, 'update.zip')), bytes); assert.ok(urls.some(u => u.startsWith('https://github.com/'))); } finally { await f.cleanup(); }
+});
+
+test('preparation retry reuses a verified ZIP without a second download and rechecks tampered cache', async () => {
+  let attempts = 0, archivePath = '';
+  const f = await fixture({ prepare: async archive => { archivePath = archive; attempts++; if (attempts < 3) throw new Error('helper not ready'); } });
+  try {
+    await f.service.check(); await assert.rejects(f.service.download(), /helper not ready/);
+    const firstCalls = f.calls();
+    await assert.rejects(f.service.download(), /helper not ready/); assert.equal(f.calls(), firstCalls, 'retry skips network for unchanged verified bytes');
+    await writeFile(archivePath, 'modified package');
+    await f.service.download(); assert.equal(f.calls(), firstCalls + 1, 'modified cache must download and verify again');
+    assert.equal(f.service.status().phase, 'ready'); assert.equal(attempts, 3);
+  } finally { await f.cleanup(); }
 });
 
 test('public GitHub API discovers release and downloads through asset API when mirror fails', async () => {
