@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { mkdir, open, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { AppUpdateStatus } from '../shared/contracts';
@@ -23,6 +24,7 @@ export class AppUpdateService {
   private lastAttempt = -Infinity;
   private lastAutomatic = -Infinity;
   private jobId?: string;
+  private cached?: { id: string; sha256: string; size: number; version: string };
   private configureQueue: Promise<unknown> = Promise.resolve();
   constructor(private options: Options) {
     this.value = { phase: options.supported ? 'idle' : 'unsupported', currentVersion: options.version, autoCheck: true, useMirror: true,
@@ -84,16 +86,28 @@ export class AppUpdateService {
     if (this.downloading) return this.downloading;
     if (this.value.phase === 'ready' && this.jobId) return this.jobId;
     if (!this.options.supported || !this.release || !['available', 'error'].includes(this.value.phase)) throw new Error('请先检查并选择可用的新版本');
-    const release = { ...this.release }, id = randomBytes(16).toString('hex');
+    const release = { ...this.release };
+    const stale = this.cached && (this.cached.sha256 !== release.sha256 || this.cached.size !== release.size || this.cached.version !== release.version) ? this.cached : undefined;
+    const id = (!stale && this.cached?.id) || randomBytes(16).toString('hex');
     this.controller = new AbortController(); const controller = this.controller;
     const timer = setTimeout(() => controller.abort(), 5 * 60000);
     this.publish({ phase: 'downloading', progress: 0, message: '正在下载更新；完成后会自动重启' });
     this.downloading = (async () => {
       const directory = path.join(this.options.directory, id); const archive = path.join(directory, 'update.zip');
+      let verified = false;
       try {
+        if (stale) { await rm(path.join(this.options.directory, stale.id), { recursive: true, force: true }); this.cached = undefined; }
         await mkdir(directory, { recursive: true });
         let lastError: unknown, success = false;
-        for (const url of this.prefs.useMirror ? [mirrorUrl(release.url), ...(release.apiUrl ? [release.apiUrl] : []), release.url] : [...(release.apiUrl ? [release.apiUrl] : []), release.url]) {
+        if (this.cached?.id === id) {
+          try {
+            this.publish({ message: '正在重新校验已下载的更新包…' });
+            const digest = createHash('sha256'); let total = 0;
+            for await (const chunk of createReadStream(archive, { signal: controller.signal })) { total += chunk.length; digest.update(chunk); }
+            success = total === release.size && digest.digest('hex') === release.sha256;
+          } catch { /* Missing/changed cache is downloaded again; never trusted blindly. */ }
+        }
+        for (const url of success ? [] : this.prefs.useMirror ? [mirrorUrl(release.url), ...(release.apiUrl ? [release.apiUrl] : []), release.url] : [...(release.apiUrl ? [release.apiUrl] : []), release.url]) {
           if (controller.signal.aborted) break;
           try {
             const response = await updateResponse(url, AbortSignal.any([controller.signal, AbortSignal.timeout(180000)]), this.options.fetch);
@@ -112,16 +126,21 @@ export class AppUpdateService {
           } catch (e) { lastError = e; }
         }
         if (!success) throw lastError ?? new Error('下载已取消');
+        verified = true; this.cached = { id, sha256: release.sha256, size: release.size, version: release.version };
         controller.signal.throwIfAborted(); this.publish({ phase: 'preparing', progress: 100, message: '正在校验并准备更新…' });
         await this.options.prepare(archive, release, id);
         controller.signal.throwIfAborted(); this.jobId = id;
         this.publish({ phase: 'ready', message: '更新已准备好，即将退出并重启' }); return id;
       } catch (e) {
         await this.options.discard?.(id).catch(() => {});
-        // Only the unique download job directory is disposable; never app/user data.
-        await rm(directory, { recursive: true, force: true }).catch(() => {});
+        // Keep only a verified ZIP on preparation failure so retry needn't download
+        // again. Cancellation/corruption still disposes this unique job directory.
+        if (!verified || controller.signal.aborted) {
+          if (this.cached?.id === id) this.cached = undefined;
+          await rm(directory, { recursive: true, force: true }).catch(() => {});
+        }
         this.publish({ phase: controller.signal.aborted ? 'available' : 'error', progress: undefined,
-          message: controller.signal.aborted ? '已取消下载，当前版本继续运行' : e instanceof Error ? e.message : '更新准备失败，当前版本未改变' }); throw e;
+          message: controller.signal.aborted ? '已取消下载，当前版本继续运行' : `${e instanceof Error ? e.message : '更新准备失败，当前版本未改变'}${verified ? '（下载包已保留，再次点击可直接重试）' : ''}` }); throw e;
       } finally { clearTimeout(timer); this.controller = undefined; }
     })().finally(() => { this.downloading = undefined; }); return this.downloading;
   }
