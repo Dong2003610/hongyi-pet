@@ -293,13 +293,35 @@ html, body {
 .chat-suggestions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; padding-top: 4px; }
 .chat-suggestions button { font-size: 11px; padding: 5px 8px; background: transparent; }
 .chat-selection { color: #68513d; background: #fff4de; padding: 7px 10px; border-radius: 9px; font-size: 12px; margin-bottom: 6px; overflow-wrap: anywhere; }
-.focus-surface { border: 1px solid #eadfd6; border-radius: 14px; background: #fffaf2; margin-bottom: 18px; padding: 13px; }
-.focus-heading { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 7px; }
-.focus-name { font-size: 14px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
-.focus-clock { font-size: 27px; font-variant-numeric: tabular-nums; margin-top: 4px; color: var(--text); }
-.focus-controls { align-items: center; margin: 9px 0 5px; }
-.focus-duration { font-size: 12px; }
-.focus-duration input { width: 54px; }
+  #task-companion { flex: 0 0 auto; min-width: 0; }
+  .task-tools.focus-surface { border: 1px solid #edddd6; border-radius: 18px; background: #fffaf7; margin-bottom: 18px; padding: 16px; color: #493831; }
+  .focus-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .focus-title { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+  .focus-title svg { width: 19px; height: 19px; color: #a7463c; }
+  .focus-state { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 4px 8px; background: #f0e9e3; color: #68574b; font-size: 11px; line-height: 1.4; }
+  .focus-state::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .focus-surface[data-phase="running"] .focus-state { background: #fce8e2; color: #9b3d32; }
+  .focus-surface[data-phase="complete"] .focus-state { background: #e6efe4; color: #3f643a; }
+  .focus-body { text-align: center; padding: 18px 0 14px; }
+  .focus-name { font-size: 13px; font-weight: 500; line-height: 1.65; overflow-wrap: anywhere; }
+  .focus-clock { font-size: clamp(36px, 9vw, 48px); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -1.5px; line-height: 1.2; margin-top: 8px; color: #493831; }
+  .focus-caption { font-size: 11px; color: #79665a; line-height: 1.6; margin-top: 4px; }
+  .focus-surface[data-phase="idle"] .focus-caption { margin-top: 7px; }
+  .focus-progress { display: block; width: 100%; height: 4px; border: 0; border-radius: 4px; overflow: hidden; appearance: none; background: #eee2da; margin: 0 0 16px; }
+  .focus-progress::-webkit-progress-bar { background: #eee2da; border-radius: 4px; }
+  .focus-progress::-webkit-progress-value { background: #b55446; border-radius: 4px; }
+  .focus-progress::-moz-progress-bar { background: #b55446; border-radius: 4px; }
+  .focus-surface .focus-controls { display: flex; align-items: stretch; justify-content: center; gap: 8px; margin: 0; }
+  .focus-surface .focus-controls button { min-height: 36px; padding: 8px 16px; border: 1px solid #dfcec3; border-radius: 10px; background: transparent; color: #685046; font-size: 12px; line-height: 1.5; }
+  .focus-surface .focus-controls [data-focus="start"], .focus-surface .focus-controls [data-focus="toggle"] { background: #a94338; border-color: #a94338; color: #fff; flex: 1; max-width: 180px; }
+  .focus-surface .focus-controls button:hover:not(:disabled) { filter: brightness(.94); }
+  .focus-surface .focus-controls button:disabled { opacity: .55; cursor: wait; }
+  .focus-surface :is(button, input):focus-visible { outline: 2px solid #a94338; outline-offset: 3px; }
+  .focus-duration { display: inline-flex; align-items: center; gap: 5px; color: #685046; font-size: 12px; }
+  .focus-surface .focus-duration input { width: 58px; min-height: 36px; background: #fff; border-color: #dfcec3; border-radius: 8px; padding: 6px; font-variant-numeric: tabular-nums; }
+  .focus-surface .focus-sync { text-align: center; font-size: 11px; color: #79665a; line-height: 1.7; margin: 12px 0 0; overflow-wrap: anywhere; }
+  .focus-surface .task-error { margin-top: 10px; line-height: 1.7; overflow-wrap: anywhere; }
+  .focus-surface [hidden] { display: none !important; }
 .focus-error:empty, .task-background-error:empty { display: none; }
 .task-chat-focus { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .task-chat-focus span:first-child { flex: 1; min-width: 100px; }
