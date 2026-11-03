@@ -19,6 +19,10 @@ async function main() {
   const compiled = ts.transpileModule(await fs.readFile(path.resolve('src/main/update-helper.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
   new Function('exports', compiled)(module.exports);
   try {
+    for (const name of ['portable-update', 'update-helper', 'persistence']) {
+      const sourceText = await fs.readFile(path.resolve(`src/main/${name}.ts`), 'utf8');
+      await fs.writeFile(path.join(root, `${name}.js`), ts.transpileModule(sourceText, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText);
+    }
     const source = path.join(root, 'Fixture.cs'), binary = path.join(root, 'pet.exe');
     await fs.writeFile(source, `using System; using System.IO; using System.Threading;
       class Fixture { static void Main(string[] args) {
@@ -45,20 +49,31 @@ async function main() {
       await run(powershell, ['-NoProfile', '-NonInteractive', '-File', zipScript, '-Source', packageRoot, '-Output', archive], { windowsHide: true });
       const bytes = await fs.readFile(archive), old = spawn(path.join(target, 'pet.exe'), ['--hold'], { windowsHide: true, cwd: root, stdio: 'ignore' });
       const helper = path.join(job, 'helper.ps1'), plan = path.join(job, 'plan.json');
-      await fs.writeFile(helper, '\ufeff' + module.exports.UPDATE_HELPER);
+      await fs.writeFile(helper, '\ufeff' + module.exports.UPDATE_HELPER.replace('[int]$HealthSeconds=45', '[int]$HealthSeconds=2'));
       await fs.writeFile(plan, JSON.stringify({ id, target, work, archive, exe: 'pet.exe', size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), version: '1.2.0', oldPid: old.pid }));
       const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, '-PlanPath', plan];
       try {
         await run(powershell, [...args, '-Mode', 'prepare'], { windowsHide: true, cwd: root, timeout: 30000 });
         assert.equal(await fs.readFile(path.join(target, 'old-only.txt'), 'utf8'), 'old', 'preparation does not replace old app');
-        let helperResult;
-        const installing = run(powershell, [...args, '-Mode', 'install', '-HealthSeconds', '2'], { windowsHide: true, cwd: root, timeout: 40000 }).then(() => { helperResult = 0; }, error => { helperResult = error.code; });
-        for (let i = 0; i < 100; i++) { if (await fs.access(path.join(job, 'helper-ready.json')).then(() => true, () => false)) break; await sleep(50); }
+        // Run the actual launch adapter in Electron, then exit that parent before
+        // letting the old fixture quit. The helper must survive both processes.
+        const host = path.join(root, `launch-${scenario}.cjs`);
+        await fs.writeFile(host, `const {app}=require('electron'),{PortableUpdate}=require('./portable-update');
+          app.setPath('userData',${JSON.stringify(path.join(base, 'host-profile'))});
+          app.whenReady().then(async()=>{try{const adapter=new PortableUpdate(${JSON.stringify({ executable: path.join(target, 'pet.exe'), userData: path.join(base, 'profile'), forbidden: [], oldPid: old.pid, version: '1.0.0' })});await adapter.launch(${JSON.stringify(id)});console.log('helper:ready-parent-exiting');app.exit(0);}catch(e){console.error(e);app.exit(1);}});`);
+        const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+        const hostResult = await execute(require('electron'), [host], { windowsHide: true, env, cwd: root, timeout: 40000 });
+        assert.match(hostResult.stdout, /helper:ready-parent-exiting/);
+        assert.equal(old.exitCode, null, 'old app remains running after Electron launcher exits');
+        assert.equal(JSON.parse((await fs.readFile(path.join(job, 'helper-ready.json'), 'utf8')).replace(/^\ufeff/, '')).id, id);
         assert.equal(await fs.readFile(path.join(target, 'old-only.txt'), 'utf8'), 'old', 'old files remain while old process is running');
-        old.kill(); await installing;
-        const receipt = JSON.parse((await fs.readFile(path.join(job, 'result.json'), 'utf8')).replace(/^\ufeff/, ''));
+        old.kill();
+        let receipt; const deadline = Date.now() + 30000;
+        while (Date.now() < deadline) {
+          try { receipt = JSON.parse((await fs.readFile(path.join(job, 'result.json'), 'utf8')).replace(/^\ufeff/, '')); if (receipt.status !== 'prepared') break; } catch {}
+          await sleep(100);
+        }
         assert.equal(receipt.status, scenario === 'healthy' ? 'installed' : 'rolled-back', JSON.stringify(receipt));
-        assert.equal(helperResult, scenario === 'healthy' ? 0 : 1);
         assert.equal(await fs.readFile(userSettings, 'utf8'), '{"keep":"account-and-key-placeholder"}', 'profile is preserved');
         if (scenario === 'healthy') {
           assert.equal(await fs.access(path.join(target, 'old-only.txt')).then(() => true, () => false), false, 'obsolete program files are removed by directory replacement');
@@ -77,7 +92,7 @@ async function main() {
     await fs.writeFile(plan, JSON.stringify({ id, target: path.join(base, 'portable'), work, archive, exe: 'pet.exe', size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }));
     await assert.rejects(run(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, '-PlanPath', plan, '-Mode', 'prepare'], { windowsHide: true }));
     assert.equal(await fs.access(path.join(work, 'escape.txt')).then(() => true, () => false), false);
-    console.log('Windows update helper: PASS (verified prepare, wait for old process, directory swap, health handshake, automatic rollback, preserved profile, unicode/special paths, zip-slip rejection; local fixture executables only).');
+    console.log('Windows update helper: PASS (real Electron launch, helper survives parent exit, verified prepare, wait for old process, directory swap, health handshake, rollback, preserved profile, unicode/special paths, zip-slip rejection; local fixtures only).');
   } finally { await fs.rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 200 }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
