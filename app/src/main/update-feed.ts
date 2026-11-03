@@ -41,10 +41,10 @@ export function updateUrlAllowed(raw: string): boolean {
   } catch { return false; }
 }
 export function mirrorUrl(url: string): string { return `https://ghfast.top/${url}`; }
-export async function updateResponse(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Response> {
+export async function updateResponse(url: string, signal: AbortSignal, fetcher: typeof fetch = fetch, headers?: Record<string, string>): Promise<Response> {
   for (let i = 0; i < 6; i++) {
     if (!updateUrlAllowed(url)) throw new Error('更新下载地址不受信任');
-    const response = await fetcher(url, { signal, redirect: 'manual', headers: { Accept: url === UPDATE_API ? 'application/vnd.github+json' : 'application/octet-stream' } });
+    const response = await fetcher(url, { signal, redirect: 'manual', headers: { ...headers, Accept: url === UPDATE_API ? 'application/vnd.github+json' : 'application/octet-stream' } });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       await response.body?.cancel(); const location = response.headers.get('location');
       if (!location) throw new Error('更新下载重定向缺少地址'); url = new URL(location, url).href; continue;
