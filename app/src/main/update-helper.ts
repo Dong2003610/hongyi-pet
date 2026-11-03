@@ -1,3 +1,20 @@
+// Start-Process creates a separate hidden console host. DETACHED_PROCESS can
+// make Windows PowerShell exit without running a script; an attached direct
+// child can instead be stopped when Electron exits. The short broker avoids both.
+export const UPDATE_LAUNCHER = String.raw`param(
+  [Parameter(Mandatory=$true)][string]$PowerShellPath,
+  [Parameter(Mandatory=$true)][string]$HelperPath,
+  [Parameter(Mandatory=$true)][string]$PlanPath
+)
+$ErrorActionPreference='Stop'
+$plan=[IO.File]::ReadAllText($PlanPath) | ConvertFrom-Json
+if ($plan.id -notmatch '^[a-f0-9]{32}$') { throw 'Invalid update id' }
+$arguments=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',('"'+$HelperPath+'"'),'-PlanPath',('"'+$PlanPath+'"'),'-Mode','install')
+$process=Start-Process -FilePath $PowerShellPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
+$receipt=Join-Path ([IO.Path]::GetDirectoryName($PlanPath)) 'helper-process.json'
+@{id=$plan.id;pid=$process.Id} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
+`;
+
 // The helper runs outside the application folder so Windows can replace it.
 // Paths are supplied as JSON data, never embedded in shell command text.
 export const UPDATE_HELPER = String.raw`param(
@@ -6,7 +23,13 @@ export const UPDATE_HELPER = String.raw`param(
   [ValidateRange(1,180)][int]$HealthSeconds=45
 )
 $ErrorActionPreference='Stop'
-[Console]::WriteLine('helper:begin')
+function Write-UpdateLog([string]$message) {
+  $log=Join-Path ([IO.Path]::GetDirectoryName($PlanPath)) 'helper.log'
+  Add-Content -LiteralPath $log -Value (([DateTime]::UtcNow.ToString('o'))+' '+$message) -Encoding UTF8
+  try { [Console]::WriteLine($message) } catch { }
+}
+trap { Write-UpdateLog ('helper:error '+$_.Exception.Message); exit 1 }
+Write-UpdateLog 'helper:begin'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $plan = [System.IO.File]::ReadAllText($PlanPath) | ConvertFrom-Json
 function Full([string]$value) { return [System.IO.Path]::GetFullPath($value).TrimEnd('\') }
@@ -28,6 +51,7 @@ if ((Full $job).StartsWith($target + '\',[System.StringComparison]::OrdinalIgnor
 $receipt = Join-Path $job 'result.json'
 function Receipt([string]$status,[string]$message) {
   @{status=$status;message=$message;version=$plan.version;backup=$backup} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
+  Write-UpdateLog ('helper:'+ $status +' '+ $message)
 }
 function Retry([scriptblock]$action) {
   for ($attempt=0; $attempt -lt 30; $attempt++) {
@@ -52,12 +76,12 @@ function VerifyArchive {
   if ($archive.Length -ne $plan.size -or $actual -ne $plan.sha256) { throw 'Update archive checksum mismatch' }
 }
 function ExtractPackage {
-  [Console]::WriteLine('helper:verify')
+  Write-UpdateLog 'helper:verify'
   VerifyArchive
   if (Test-Path -LiteralPath $fresh) { throw 'Staging directory already exists' }
   [System.IO.Directory]::CreateDirectory($fresh) | Out-Null
   $zip = [System.IO.Compression.ZipFile]::OpenRead($plan.archive)
-  [Console]::WriteLine('helper:extract')
+  Write-UpdateLog 'helper:extract'
   try {
     if ($zip.Entries.Count -gt 15000) { throw 'Too many archive entries' }
     $paths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -86,7 +110,7 @@ function ExtractPackage {
   }
 }
 if ($Mode -eq 'prepare') {
-  try { ExtractPackage; [Console]::WriteLine('helper:prepared'); Receipt 'prepared' 'Update package prepared'; exit 0 }
+  try { ExtractPackage; Write-UpdateLog 'helper:prepared'; Receipt 'prepared' 'Update package prepared'; exit 0 }
   catch { Receipt 'failed' $_.Exception.Message; throw }
 }
 $movedOld=$false
@@ -98,7 +122,8 @@ try {
   if (!(Test-Path -LiteralPath (Join-Path $fresh $plan.exe))) { throw 'Prepared application is missing' }
   $oldProcess=Get-Process -Id $plan.oldPid -ErrorAction SilentlyContinue
   if ($oldProcess -and !(Equal $oldProcess.Path $oldExe)) { throw 'Update process does not match the old application' }
-  @{id=$plan.id} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $job 'helper-ready.json') -Encoding UTF8
+  @{id=$plan.id;pid=$PID} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $job 'helper-ready.json') -Encoding UTF8
+  Write-UpdateLog 'helper:ready'
   if ($oldProcess -and !$oldProcess.WaitForExit(90000)) { throw 'Old application did not exit; update canceled' }
   # Rebuild from the verified archive after exit; staging cannot be modified
   # between preparation and replacement without being checked again.
