@@ -1,0 +1,29 @@
+{
+  "id": "release-1.1.3",
+  "description": "Advance portable updater release from 1.1.2 to 1.1.3",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "package.json",
+      "from": "7cf5f7daac18ce62a854c9f6ec01f7b0988ec71400e6bfd56a262ccb97ddec23",
+      "to": "d049d09097acb6003b4a80b0e2fe1d7352a897676eacdb5c6949eb3110275fca"
+    },
+    {
+      "file": "package-lock.json",
+      "from": "8c51dd0fea5cc969ce408480a61c4a070e7927d7e43bfd3421288b1d9daeb686",
+      "to": "648173e054e38fc39a3f254464a0ffdeee41d4d00904c4bfe961e78edd4bd750"
+    },
+    {
+      "file": "pet-spec.json",
+      "from": "4a44ce369c79dcd91352ea791231bc7884ce1f4b30ee15db73eadc2de5c52466",
+      "to": "c60c0e9bd4133156e8e3b5b3852bfdd79f1eb5ada68703031947511725297d4d"
+    }
+  ],
+  "validation": [
+    "preflight.mjs",
+    "TypeScript noEmit",
+    "unit and updater helper tests",
+    "prepare-update-release.mjs validates build version and checksum"
+  ]
+}
