@@ -142,6 +142,14 @@ export class TaskCompanion {
     } else f.error = undefined;
     await this.persist();
   }
+  private async closeFinished(state: AccountState): Promise<void> {
+    const f = state.focus;
+    if (!f || f.running || f.workedMs < f.targetMs || f.error || f.confirmed < f.base + Math.floor(f.workedMs / 1000)) return;
+    state.focus = undefined;
+    try { await this.persist(); }
+    catch (error) { state.focus = f; f.error = '本轮已完成，本机保存失败，请重试同步。'; throw error; }
+    this.options.changed?.();
+  }
   focus(input: unknown, expectedRevision = this.service.accountRevision()): Promise<TaskFocusStatus> {
     const pauseRevision = this.pauseRevision;
     return this.serial(async () => {
@@ -172,6 +180,7 @@ export class TaskCompanion {
           try { await this.flush(state, revision); }
           finally { if (!f.free && this.service.releaseFocus) await this.service.releaseFocus(revision).catch(() => {}); }
           if (data.action === 'stop') state.focus = undefined;
+          else await this.closeFinished(state);
         } else throw new Error('计时操作无效。');
       }
       try { await this.persist(); }
@@ -228,6 +237,7 @@ export class TaskCompanion {
           this.lastFlush = now.getTime();
           try { await this.flush(state, revision); } catch { /* Visible in focus status; next tick retries. */ }
         }
+        await this.closeFinished(state);
       }
       if (isQuiet(state.preferences, now) || (now.getTime() >= this.lastScan && now.getTime() - this.lastScan < 30_000)) return;
       this.lastScan = now.getTime();
