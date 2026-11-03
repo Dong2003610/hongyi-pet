@@ -79,7 +79,7 @@ async function main() {
         taskList: {
           companion: async () => { window.companionReads++; return { preferences, focus }; },
           configure: async (input) => { if (window.configError) throw new Error('test save failure'); preferences = input; return preferences; },
-          focus: async (input) => { focus = input.action === 'stop' ? { phase: 'idle', seconds: 0, remaining: 0 } : { phase: input.action === 'pause' ? 'paused' : 'running', name: '界面测试任务', seconds: 90, remaining: 1500 }; return focus; },
+          focus: async (input) => { focus = input.action === 'stop' || input.action === 'retry' && focus.remaining === 0 ? { phase: 'idle', seconds: 0, remaining: 0 } : { phase: input.action === 'pause' ? 'paused' : 'running', name: '界面测试任务', seconds: 90, remaining: 1500 }; return focus; },
           briefing: async (kind) => `${kind === 'morning' ? '每日简报' : '晚间复盘'}：共 2 项，完成 1 项。`,
           plan: async (input) => { window.planCalls++; return { ai: false, items: ['确定范围', '完成第一版', '验收上线'].map((name) => ({ id: crypto.randomUUID(), kind: 'daily', name, date: input.date, priority: 'medium' })) }; },
           status: async () => status(),
@@ -279,7 +279,15 @@ async function main() {
       await page.waitForFunction(() => document.querySelector('.focus-state').textContent === '本轮完成');
       assert.equal(await page.locator('[data-focus="toggle"]').isHidden(), true);
       assert.equal(await page.locator('[data-focus="retry"]').isVisible(), true);
+      assert.equal(await page.locator('.focus-clock').textContent(), '已完成');
       await page.locator('.focus-surface').screenshot({ path: path.join(qa, 'focus-complete.png') });
+      await page.locator('[data-tab="chat"]').click();
+      assert.match(await page.locator('.task-chat-focus').textContent(), /本轮已完成.*重试同步/);
+      assert.ok(!(await page.locator('.task-chat-focus').textContent()).includes('0:00'));
+      await page.locator('.task-chat-focus button').filter({ hasText: '重试同步' }).click();
+      await page.waitForFunction(() => document.querySelector('.task-chat-focus').hidden);
+      await page.locator('[data-tab="tasks"]').click();
+      await page.locator('[data-focus="start"]').click();
     await page.locator('[data-focus="stop"]').click();
     await page.waitForFunction(() => document.querySelector('.focus-state').textContent === '准备开始');
       await page.locator('.focus-surface').screenshot({ path: path.join(qa, 'focus-idle.png') });
