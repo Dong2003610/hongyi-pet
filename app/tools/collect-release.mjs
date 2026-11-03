@@ -1,4 +1,4 @@
-import { copyFile, cp, lstat, mkdir, readFile, readlink, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, cp, lstat, mkdir, readFile, readlink, readdir, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -14,7 +14,8 @@ if (!['package', 'make'].includes(mode) || !platform || !arch) throw new Error('
 const sourceOut = options.out ? path.resolve(options.out) : path.join(root, 'out');
 const release = path.resolve(root, 'release');
 if (path.dirname(release) !== path.resolve(root)) throw new Error('Refusing unsafe release path');
-await rm(release, { recursive: true, force: true });
+// A user may run a portable release from this folder. Preserve every existing
+// artifact/directory; only replace the manifest describing the newest build.
 await mkdir(release, { recursive: true });
 const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const spec = JSON.parse(await readFile(path.join(root, 'pet-spec.json'), 'utf8'));
@@ -44,7 +45,8 @@ if (mode === 'package') {
   const packageDirectory = entries.find((entry) => entry.isDirectory() && entry.name.endsWith(suffix));
   if (!packageDirectory) throw new Error(`No packaged app ending in ${suffix} found under out.`);
   const destinationName = `${spec.app.name}-${platform}-${arch}-ready-to-run`;
-  const destination = path.join(release, destinationName);
+  let destination = path.join(release, destinationName);
+  for (let index = 1; await stat(destination).then(() => true, () => false); index += 1) destination = path.join(release, `${destinationName}-${index}`);
   await cp(path.join(sourceOut, packageDirectory.name), destination, { recursive: true, verbatimSymlinks: true });
   if (platform === 'darwin') {
     const appBundle = path.join(destination, `${spec.app.name}.app`);
