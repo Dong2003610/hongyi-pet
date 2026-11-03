@@ -24,12 +24,18 @@ Windows x64 便携版从 **1.1.0** 开始支持应用内更新。旧版没有更
 
 ## 后续发布流程
 
-仅推送源代码或构建 Actions artifact 不会触发用户更新。桌宠读取此仓库 **GitHub Releases 最新正式版本**的 `update-manifest.json`，下载同版本的 `hongyi-pet-win32-x64-v<版本>.zip`；开发模式、测试模式和其他平台不执行替换。
+**正常使用只需把改动推送到 main，不再需要手动递增版本或创建标签。** GitHub Actions 会自动完成：
 
-1. 在 `app` 目录运行 `node tools/prepare-version.mjs 1.1.1`（示例），递增版本并记录受保护版本文件的迁移。
-2. 完成修改、维护 `app/RELEASE_NOTES.md`，运行类型、单元、Windows 更新助手测试及便携包验证。
-3. 将源码同步到 GitHub，创建对应的 `v1.1.1` 标签。版本必须与 package、pet-spec 一致。
-4. 标签构建会生成便携 ZIP，验证版本、字节数和 SHA-256，再创建 GitHub Release，上传更新包和清单。发布成功后用户才能检测到新版本。
+1. 比较当前源码版本和已经正式发布的版本；如果仍是旧版本，自动递增补丁号，例如 `1.1.1 → 1.1.2`。如果已经手动指定更高版本，则沿用指定版本。
+2. 同步 package、锁文件和两份 pet-spec，记录受保护文件迁移，并从提交记录生成更新说明。
+3. 运行类型、全部单元、Windows 替换回滚和网络传输测试，再打包并校验 ZIP。
+4. 检查 main 没有被后来的提交推进，将版本记录和标签原子推送，再上传更新包和清单。两个文件上传完成后才把草稿发布为最新正式版本。
+
+同一时间只运行一个发布流程；main 在构建期间有新提交时，本轮不会覆盖它，由后续构建发布完整的新改动。测试或打包失败不会发布。版本提交使用 GitHub Actions 身份和 `[skip ci]`，避免循环构建。已发布版本不覆盖，所有新改动使用新版本号。
+
+如果在提交版本后遇到 GitHub 上传故障，可在 Actions 的 build 工作流对 main 执行 Run workflow；它会沿用尚未发布的版本并继续发布。不要只重跑一个已经落后于 main 的旧提交。`main` 需要允许该仓库 Actions 的 `contents: write` 权限，分支保护禁止机器人提交时流程会明确失败，不会绕过保护。
+
+桌宠仍读取 **GitHub Releases 最新正式版本**及相应的 `update-manifest.json`，下载 `hongyi-pet-win32-x64-v<版本>.zip`；开发模式、测试模式和其他平台不执行替换。仅上传到其他分支或 Actions artifact 不会向用户发布。需要指定较大版本时，也可提前运行 `node tools/prepare-version.mjs 1.2.0`。手动版本标签构建继续兼容。
 
 本地构建使用 `npm run portable:win`，然后运行 `node tools/prepare-update-release.mjs` 生成上传资产。构建收集器会重建输出目录，应在隔离的源码暂存目录中构建，保留正在使用的便携版。
 
