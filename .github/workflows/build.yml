@@ -56,6 +56,9 @@ jobs:
       - name: Verify Chromium update transport
         run: node tests/e2e/update-network.e2e.cjs
 
+      - name: Verify update preparation inside Electron
+        run: node tests/e2e/update-prepare.e2e.cjs
+
       - name: Build portable package
         run: npm run portable:win
 
