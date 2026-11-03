@@ -59,6 +59,7 @@ async function main() {
       const status = () => ({ connected, remembered, canRemember: true, ...(connected ? { username: 'demo' } : {}) });
       let preferences = { reminders: false, morning: false, morningTime: '09:00', evening: false, eveningTime: '21:00', quiet: true, quietStart: '22:00', quietEnd: '08:00' };
       let focus = { phase: 'idle', seconds: 0, remaining: 0 };
+      window.setMockFocus = (value) => { focus = value; };
       window.planCalls = 0;
       window.petAPI = {
         updates: {
@@ -252,10 +253,36 @@ async function main() {
     await page.waitForFunction((before) => window.companionReads > before + 1, beforeFocusPoll);
     assert.equal(await page.locator('.task-chat-focus button').first().evaluate((button) => document.activeElement === button), true, 'polling preserves keyboard focus on the timer controls');
     await page.locator('[data-tab="tasks"]').click();
+      await page.evaluate(() => window.setMockFocus({ phase: 'running', name: '完成桌宠的专注界面优化', seconds: 333, roundSeconds: 333, remaining: 1167 }));
+      await page.waitForFunction(() => document.querySelector('.focus-clock').textContent === '19:27');
+      assert.ok(Math.abs(await page.locator('.focus-progress').evaluate((el) => el.value) - 333 / 1500) < .001);
+      await page.locator('.focus-surface').screenshot({ path: path.join(qa, 'focus-running.png') });
+      await page.screenshot({ path: path.join(qa, 'focus-dashboard.png') });
+      await page.evaluate(() => window.setMockFocus({ phase: 'running', name: '这是一项需要分成多个步骤来完成的长任务名称，用来检查小窗口中任务文字是否完整显示以及暂停和结束操作是否仍然可用', seconds: 333, roundSeconds: 333, remaining: 1167 }));
+      await page.waitForFunction(() => document.querySelector('.focus-name').textContent.startsWith('这是一项'));
+      for (const width of [320, 380, 480]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.locator('.focus-surface').scrollIntoViewIfNeeded();
+        assert.ok(await page.locator('.focus-surface').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'long focus task fits narrow windows');
+        const inset = await page.locator('.focus-surface').evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
+        assert.ok(inset >= 16, 'focus card keeps its own padding despite generic task styles');
+        assert.ok(await page.locator('[data-focus="toggle"]').isVisible());
+        assert.ok(await page.locator('[data-focus="stop"]').isVisible());
+        await page.locator('.focus-surface').screenshot({ path: path.join(qa, `focus-narrow-${width}.png`) });
+      }
     await page.locator('[data-focus="toggle"]').click();
     await page.waitForFunction(() => document.querySelector('.focus-state').textContent.includes('已暂停'));
+      await page.locator('.focus-surface').screenshot({ path: path.join(qa, 'focus-paused.png') });
+      await page.locator('[data-focus="toggle"]').click();
+      await page.waitForFunction(() => document.querySelector('.focus-state').textContent === '专注中');
+      await page.evaluate(() => window.setMockFocus({ phase: 'paused', name: '完成桌宠的专注界面优化', seconds: 1500, roundSeconds: 1500, remaining: 0, error: '暂时无法同步，请稍后重试' }));
+      await page.waitForFunction(() => document.querySelector('.focus-state').textContent === '本轮完成');
+      assert.equal(await page.locator('[data-focus="toggle"]').isHidden(), true);
+      assert.equal(await page.locator('[data-focus="retry"]').isVisible(), true);
+      await page.locator('.focus-surface').screenshot({ path: path.join(qa, 'focus-complete.png') });
     await page.locator('[data-focus="stop"]').click();
     await page.waitForFunction(() => document.querySelector('.focus-state').textContent === '准备开始');
+      await page.locator('.focus-surface').screenshot({ path: path.join(qa, 'focus-idle.png') });
     assert.equal(await page.locator('.task-chat-focus').isHidden(), true);
     // The lightweight surface uses the same dashboard DOM and chat pipeline.
     await page.setViewportSize({ width: 380, height: 430 });
