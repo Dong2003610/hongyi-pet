@@ -6,6 +6,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+concurrency:
+  group: hongyi-pet-release
+  cancel-in-progress: false
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -20,6 +24,8 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -27,6 +33,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare automatic main release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/auto-release.mjs prepare
 
       - name: Type check
         run: npx tsc --noEmit
@@ -50,26 +62,36 @@ jobs:
       - name: Prepare versioned update package
         run: node tools/prepare-update-release.mjs
 
+      - name: Commit verified release version and tag
+        id: auto-release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/auto-release.mjs finalize
+
       - name: Publish formal update release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || steps.auto-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag/package version mismatch' }
-          $draft = gh release view $env:GITHUB_REF_NAME --json isDraft --jq .isDraft 2>$null
+          $tag = "v$version"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $tag) { throw 'Tag/package version mismatch' }
+          $draft = gh release view $tag --json isDraft --jq .isDraft 2>$null
           if ($LASTEXITCODE -eq 0) {
             if ($draft -eq 'true') {
-              gh release upload $env:GITHUB_REF_NAME "release/hongyi-pet-win32-x64-v$version.zip" release/update-manifest.json --clobber
+              gh release upload $tag "release/hongyi-pet-win32-x64-v$version.zip" release/update-manifest.json --clobber
               if ($LASTEXITCODE -ne 0) { throw 'Draft asset upload failed' }
-              gh release edit $env:GITHUB_REF_NAME --draft=false --latest --notes-file RELEASE_NOTES.md
+              gh release edit $tag --draft=false --latest --notes-file RELEASE_NOTES.md
               if ($LASTEXITCODE -ne 0) { throw 'Draft publication failed' }
             } else {
               Write-Output 'Release already exists; retaining its original immutable update assets.'
             }
           } else {
-            gh release create $env:GITHUB_REF_NAME "release/hongyi-pet-win32-x64-v$version.zip" release/update-manifest.json --verify-tag --title "小红桌宠 $version" --notes-file RELEASE_NOTES.md
+            gh release create $tag "release/hongyi-pet-win32-x64-v$version.zip" release/update-manifest.json --verify-tag --draft --title "小红桌宠 $version" --notes-file RELEASE_NOTES.md
+            if ($LASTEXITCODE -ne 0) { throw 'Release draft upload failed' }
+            gh release edit $tag --draft=false --latest
             if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
           }
 
