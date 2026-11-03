@@ -14,7 +14,7 @@
     "tools/doctor.mjs": "2f79b020df8f71522d735802c1095f104e6438fe7b2629ebb6fd99dcf2f0d565",
     "tools/inspect-assets.mjs": "2b70044609d3868913ec0db7ba69470078d843fcfa5e7b7a9cabfbbc9e67f5a5",
     "tools/qa-assets.mjs": "d8aeaa1810da1499db89e39c00a29336587d27c2ad828d97f7bf34f4c14be980",
-    "tools/collect-release.mjs": "50d78bbd41b5a8d2435fc3bdf77359ee10a908379b5918ccb4b83dc27d0c78d7",
+    "tools/collect-release.mjs": "ed12ad53fd2cea865900cc74aa41e241669e13a4bb227ed6a953433e2bf237ee",
     "tools/qa-ui.mjs": "2fc8417689023714595de148ba9fb8de73ea5b0648ef97c69efe55977995324f",
     "tools/qa-experience.mjs": "4bb4641e1d1fee1ecb71eb223b4f1825b57ad369184d50e28759d127965bad01",
     "tools/validate-spec.mjs": "5b18c55307e4eedad64a88b42836e3c8044d8aef5cf3f71eaca3bbbd7f5a74c4",
