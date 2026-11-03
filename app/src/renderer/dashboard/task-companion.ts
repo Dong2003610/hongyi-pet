@@ -26,20 +26,22 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
   const chatLabel = document.createElement('span');
   const chatToggle = document.createElement('button'); chatToggle.type = 'button'; chatToggle.onclick = () => void operate(focus.phase === 'running' ? 'pause' : 'resume');
   const chatStop = document.createElement('button'); chatStop.type = 'button'; chatStop.textContent = '结束'; chatStop.onclick = () => void operate('stop');
+  const chatRetry = document.createElement('button'); chatRetry.type = 'button'; chatRetry.textContent = '重试同步'; chatRetry.hidden = true; chatRetry.onclick = () => void operate('retry');
   const chatError = document.createElement('span'); chatError.className = 'task-error';
-  chatFocus.append(chatLabel, chatToggle, chatStop, chatError);
+  chatFocus.append(chatLabel, chatToggle, chatStop, chatRetry, chatError);
   document.getElementById('chat-messages')?.before(chatFocus);
   let focus: TaskFocusStatus = { phase: 'idle', seconds: 0, remaining: 0 }; let busy = false; let polling = false; let epoch = 0; let account = '';
   const el = (selector: string) => root.querySelector<HTMLElement>(selector)!;
   function render(value: TaskFocusStatus) {
     focus = value;
     const idle = value.phase === 'idle';
+    const complete = !idle && value.remaining <= 0;
     el('.focus-surface').dataset.phase = idle ? 'idle' : value.remaining === 0 ? 'complete' : value.phase;
-    el('.focus-state').textContent = value.phase === 'idle' ? '准备开始' : value.phase === 'running' ? '专注中' : value.remaining === 0 ? '本轮完成' : '已暂停';
+    el('.focus-state').textContent = idle ? '准备开始' : complete ? '本轮完成' : value.phase === 'running' ? '专注中' : '已暂停';
     el('.focus-name').textContent = value.phase === 'idle' ? '自由专注，或选择下方的一项任务' : value.name ?? '自由专注';
-    el('.focus-clock').textContent = value.phase === 'idle' ? '' : format(value.remaining);
+    el('.focus-clock').textContent = idle ? '' : complete ? '已完成' : format(value.remaining);
     el('.focus-clock').hidden = idle;
-    el('.focus-caption').textContent = idle ? '留一点时间，只做眼前这一件事' : value.remaining === 0 ? '辛苦啦，休息一下吧' : value.phase === 'paused' ? '歇一会儿，准备好了再继续' : '剩余时间';
+    el('.focus-caption').textContent = idle ? '留一点时间，只做眼前这一件事' : complete ? `本轮专注 ${format(value.roundSeconds ?? value.seconds)}，${value.error ? '时长待同步' : '辛苦啦，休息一下吧'}` : value.phase === 'paused' ? '歇一会儿，准备好了再继续' : '剩余时间';
     const progress = root.querySelector<HTMLProgressElement>('.focus-progress')!;
     const elapsed = value.roundSeconds;
     progress.hidden = idle || elapsed === undefined || elapsed + value.remaining <= 0;
@@ -47,10 +49,13 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
     el('[data-focus="start"]').hidden = value.phase !== 'idle'; el('.focus-duration').hidden = value.phase !== 'idle';
     el('[data-focus="toggle"]').hidden = value.phase === 'idle' || value.remaining === 0; el('[data-focus="toggle"]').textContent = value.phase === 'running' ? '暂停' : '继续';
     el('[data-focus="stop"]').hidden = value.phase === 'idle'; el('[data-focus="retry"]').hidden = !value.error; el('.focus-error').textContent = value.error ?? '';
+    el('[data-focus="stop"]').textContent = complete ? value.error ? '结束并同步' : '收起' : '结束';
     el('.focus-sync').textContent = value.phase === 'idle' ? '一轮结束后由你决定休息或继续。' : value.free ? `本轮 ${format(value.roundSeconds ?? value.seconds)} · 保存在本机` : `任务累计 ${format(value.seconds)} · ${value.error ? '待同步' : '进度自动保存'}`;
     chatFocus.hidden = value.phase === 'idle';
-    chatLabel.textContent = `${value.phase === 'running' ? '⏱' : '⏸'} ${value.name ?? '自由专注'} · ${format(value.remaining)}`;
+    chatLabel.textContent = complete ? `✓ ${value.name ?? '自由专注'} · 本轮已完成` : `${value.phase === 'running' ? '⏱' : '⏸'} ${value.name ?? '自由专注'} · ${format(value.remaining)}`;
     chatToggle.hidden = value.remaining <= 0; chatToggle.textContent = value.phase === 'running' ? '暂停' : '继续';
+    chatStop.textContent = complete ? value.error ? '结束并同步' : '收起' : '结束';
+    chatRetry.hidden = !value.error; chatRetry.disabled = busy;
     chatToggle.disabled = chatStop.disabled = busy;
     chatError.hidden = !value.error; chatError.textContent = value.error ? '时长待同步' : '';
   }
