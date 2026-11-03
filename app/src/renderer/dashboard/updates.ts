@@ -11,6 +11,7 @@ export function setupUpdates(openSettings: () => void): void {
   const message = field('update-message'), version = field('update-version'), notes = field('update-notes');
   const check = field<HTMLButtonElement>('update-check'), apply = field<HTMLButtonElement>('update-apply'), cancel = field<HTMLButtonElement>('update-cancel');
   const auto = field<HTMLInputElement>('update-auto'), mirror = field<HTMLInputElement>('update-mirror'), progress = field<HTMLProgressElement>('update-progress');
+  cancel.textContent = '暂停下载';
   const preferences = field<HTMLFormElement>('update-preferences'); let dirty = false, busy = false, saving = false, epoch = 0, latest: AppUpdateStatus | undefined;
   function render(value: AppUpdateStatus) {
     latest = value;
@@ -24,7 +25,7 @@ export function setupUpdates(openSettings: () => void): void {
     apply.disabled = busy || running || value.phase === 'checking'; apply.textContent = value.phase === 'ready' ? '重试更新并重启' : '下载并重启';
     cancel.hidden = value.phase !== 'downloading';
     progress.hidden = !['downloading', 'preparing'].includes(value.phase); progress.value = value.progress ?? 0;
-    badge.hidden = !value.latestVersion; badge.textContent = running ? value.message : `发现新版本 ${value.latestVersion} · 打开更新`;
+    badge.hidden = !value.latestVersion; badge.textContent = running ? value.phase === 'downloading' ? '正在下载更新 · 打开查看进度' : value.message : `发现新版本 ${value.latestVersion} · 打开更新`;
   }
   const refresh = async () => { const request = ++epoch; try { const value = await api!.status(); if (request === epoch) render(value); } catch { message.textContent = '更新状态读取失败，请稍后重试'; } };
   const show = () => { openSettings(); section.scrollIntoView({ block: 'start' }); void refresh(); };
