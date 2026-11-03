@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { access, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { promises as disk } from 'original-fs';
 import type { UpdateRelease } from './update-feed';
 import { UPDATE_HELPER } from './update-helper';
 import { atomicWriteJson } from './persistence';
@@ -15,7 +16,12 @@ export class PortableUpdate {
     if (parent === target || this.options.forbidden.some(dir => path.resolve(dir).toLowerCase() === target.toLowerCase())
       || path.resolve(this.options.userData).toLowerCase().startsWith(target.toLowerCase() + path.sep)) throw new Error('请先将便携版放入独立文件夹，再进行一键更新');
     const info = await lstat(target); if (info.isSymbolicLink()) throw new Error('不支持在符号链接目录中替换程序');
-    for (const name of ['resources/app.asar', 'chrome_100_percent.pak', 'icudtl.dat']) await access(path.join(target, name));
+    // Electron's patched fs.access resolves an .asar path inside the archive;
+    // the archive itself must be checked through the native filesystem instead.
+    for (const name of ['resources/app.asar', 'chrome_100_percent.pak', 'icudtl.dat']) {
+      try { const file = await disk.stat(path.join(target, name)); if (!file.isFile() || file.size === 0) throw new Error('Invalid file'); }
+      catch { throw new Error(`当前便携版缺少完整程序文件：${name}。请使用完整便携包修复后再更新。`); }
+    }
     const work = path.join(parent, `.hongyi-update-${id}`); const job = this.job(id);
     await mkdir(job, { recursive: true });
     try { await mkdir(work); } catch { throw new Error('程序目录没有更新写入权限，请将便携版移至可写的独立文件夹'); }
@@ -66,6 +72,6 @@ export class PortableUpdate {
     const parent = path.dirname(path.dirname(path.resolve(this.options.executable)));
     const work = path.join(parent, `.hongyi-update-${id}`);
     if (path.dirname(work) !== parent || path.basename(work) !== `.hongyi-update-${id}`) throw new Error('更新清理路径无效');
-    await rm(work, { recursive: true, force: true });
+    await disk.rm(work, { recursive: true, force: true });
   }
 }
