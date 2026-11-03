@@ -153,8 +153,7 @@ test('suspend, natural round end and task completion release focus ownership imm
   await f.companion.focus({ action: 'start', id: id(1), minutes: 1 });
   await f.companion.suspend(); assert.equal(f.metadata.dtl_focus_v1, null);
   await f.companion.focus({ action: 'resume' }); f.advance(60000); await f.companion.tick();
-  assert.equal(f.metadata.dtl_focus_v1, null); assert.equal(f.companion.status().focus.phase, 'paused');
-  await f.companion.focus({ action: 'stop' });
+  assert.equal(f.metadata.dtl_focus_v1, null); assert.equal(f.companion.status().focus.phase, 'idle');
   await f.companion.focus({ action: 'start', id: id(1), minutes: 25 }); f.advance(10000);
   const completed = await f.service.update({ id: id(1), kind: 'daily', patch: { completed: true } });
   await f.companion.completed(completed, f.service.accountRevision());
