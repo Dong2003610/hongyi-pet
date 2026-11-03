@@ -1,0 +1,18 @@
+{
+  "id": "20261103-preserve-release-folders",
+  "description": "Preserve existing portable installation directories and dated archives while collecting new release artifacts; never recursively clear the release root. Allocate a new destination for repeated package collections.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "tools/collect-release.mjs",
+      "from": "50d78bbd41b5a8d2435fc3bdf77359ee10a908379b5918ccb4b83dc27d0c78d7",
+      "to": "ed12ad53fd2cea865900cc74aa41e241669e13a4bb227ed6a953433e2bf237ee"
+    }
+  ],
+  "validation": [
+    "collect-release.test.mjs preserves a running-install fixture and old ZIP across repeated collection",
+    "preflight.mjs",
+    "portable:win"
+  ]
+}
