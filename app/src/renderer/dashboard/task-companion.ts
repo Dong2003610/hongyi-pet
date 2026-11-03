@@ -7,7 +7,13 @@ const format = (seconds: number) => `${Math.floor(seconds / 60)}:${String(second
 export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown) => void, changed: () => Promise<void>) {
   const api = window.petAPI?.taskList;
   if (!api?.companion) return { open: async () => {}, account: (_key: string) => {}, actions: (_item: LinkedTask, _kind: TaskListKind, _row: HTMLElement) => {} };
-  root.innerHTML = `<section class="task-tools focus-surface"><div class="focus-heading"><span>一起专注</span><span class="focus-state"></span></div><p class="focus-name">自由专注，或选择下方的一项任务</p><p class="focus-clock" aria-live="off"></p><div class="task-tool-buttons focus-controls"><label class="focus-duration"><input type="number" class="task-focus-minutes" value="25" min="1" max="180" aria-label="专注分钟数"> 分钟</label><button type="button" data-focus="start">自由专注</button><button type="button" data-focus="toggle" hidden>暂停</button><button type="button" data-focus="stop" hidden>结束</button><button type="button" data-focus="retry" hidden>重试同步</button></div><p class="focus-error task-error" role="status"></p><p class="focus-sync task-hint"></p><p class="task-background-error task-error" role="status"></p></section>`;
+  root.innerHTML = `<section class="task-tools focus-surface" data-phase="idle" aria-label="一起专注">
+    <div class="focus-heading"><span class="focus-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M9 2h6m-3 3V2m6 5 2-2m-8 4v4l2 2" stroke-linecap="round"/></svg>一起专注</span><span class="focus-state" role="status"></span></div>
+    <div class="focus-body"><p class="focus-name">自由专注，或选择下方的一项任务</p><p class="focus-clock" aria-live="off"></p><p class="focus-caption">留一点时间，只做眼前这一件事</p></div>
+    <progress class="focus-progress" max="1" value="0" aria-label="本轮专注进度" hidden></progress>
+    <div class="task-tool-buttons focus-controls"><label class="focus-duration"><input type="number" class="task-focus-minutes" value="25" min="1" max="180" aria-label="专注分钟数"><span>分钟</span></label><button type="button" data-focus="start">自由专注</button><button type="button" data-focus="toggle" hidden>暂停</button><button type="button" data-focus="stop" hidden>结束</button><button type="button" data-focus="retry" hidden>重试同步</button></div>
+    <p class="focus-error task-error" role="status"></p><p class="focus-sync task-hint"></p><p class="task-background-error task-error" role="status"></p>
+  </section>`;
   const settingsRoot = document.getElementById('companion-settings')!;
   settingsRoot.innerHTML = `<section class="settings-group"><div class="section-title">提醒与陪伴</div><form class="task-companion-settings"><label><input name="reminders" type="checkbox"> 桌宠接收任务提醒</label><label><input name="morning" type="checkbox"> 每日简报 <input name="morningTime" type="time" required></label><label><input name="evening" type="checkbox"> 晚间复盘 <input name="eveningTime" type="time" required></label><label><input name="quiet" type="checkbox"> 免打扰 <input name="quietStart" type="time" required> 至 <input name="quietEnd" type="time" required></label><p class="task-hint">时间均为北京时间。免打扰期间保持安静，提醒在结束后补查。专注时减少走动和主动打扰。</p><button type="submit">保存</button><span class="task-config-message" role="status"></span></form></section>`;
   const settings = settingsRoot.querySelector<HTMLFormElement>('form')!;
@@ -27,9 +33,17 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
   const el = (selector: string) => root.querySelector<HTMLElement>(selector)!;
   function render(value: TaskFocusStatus) {
     focus = value;
+    const idle = value.phase === 'idle';
+    el('.focus-surface').dataset.phase = idle ? 'idle' : value.remaining === 0 ? 'complete' : value.phase;
     el('.focus-state').textContent = value.phase === 'idle' ? '准备开始' : value.phase === 'running' ? '专注中' : value.remaining === 0 ? '本轮完成' : '已暂停';
     el('.focus-name').textContent = value.phase === 'idle' ? '自由专注，或选择下方的一项任务' : value.name ?? '自由专注';
     el('.focus-clock').textContent = value.phase === 'idle' ? '' : format(value.remaining);
+    el('.focus-clock').hidden = idle;
+    el('.focus-caption').textContent = idle ? '留一点时间，只做眼前这一件事' : value.remaining === 0 ? '辛苦啦，休息一下吧' : value.phase === 'paused' ? '歇一会儿，准备好了再继续' : '剩余时间';
+    const progress = root.querySelector<HTMLProgressElement>('.focus-progress')!;
+    const elapsed = value.roundSeconds;
+    progress.hidden = idle || elapsed === undefined || elapsed + value.remaining <= 0;
+    progress.value = elapsed === undefined ? 0 : elapsed / Math.max(1, elapsed + value.remaining);
     el('[data-focus="start"]').hidden = value.phase !== 'idle'; el('.focus-duration').hidden = value.phase !== 'idle';
     el('[data-focus="toggle"]').hidden = value.phase === 'idle' || value.remaining === 0; el('[data-focus="toggle"]').textContent = value.phase === 'running' ? '暂停' : '继续';
     el('[data-focus="stop"]').hidden = value.phase === 'idle'; el('[data-focus="retry"]').hidden = !value.error; el('.focus-error').textContent = value.error ?? '';
