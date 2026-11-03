@@ -1,13 +1,10 @@
-小红桌宠 1.1.5
+小红桌宠 1.1.6
 
-- feat: companion interaction and motion update (1/1): app/tests/e2e/update-network.e2e.cjs
-- feat: companion interaction and motion update (8/8): app/tests/unit/update-service.test.ts
-- feat: companion interaction and motion update (7/8): app/tests/unit/update-download.test.ts
-- feat: companion interaction and motion update (6/8): app/tests/e2e/update-network.e2e.cjs
-- feat: companion interaction and motion update (5/8): app/src/renderer/dashboard/updates.ts
-- feat: companion interaction and motion update (4/8): app/src/main/update-service.ts
-- feat: companion interaction and motion update (3/8): app/src/main/update-network.ts
-- feat: companion interaction and motion update (2/8): app/src/main/update-feed.ts
-- feat: companion interaction and motion update (1/8): app/src/main/update-download.ts
+- fix: finish and dismiss completed focus sessions (6/6): app/tests/unit/task-companion.test.ts
+- fix: finish and dismiss completed focus sessions (5/6): app/tests/unit/product-experience.test.ts
+- fix: finish and dismiss completed focus sessions (4/6): app/tests/e2e/task-list.e2e.cjs
+- fix: finish and dismiss completed focus sessions (3/6): app/src/renderer/dashboard/task-companion.ts
+- fix: finish and dismiss completed focus sessions (2/6): app/src/main/task-list-chat.ts
+- fix: finish and dismiss completed focus sessions (1/6): app/src/main/task-companion.ts
 
 本版本已通过自动测试和便携版构建，支持在小屋设置中下载并重启更新。
