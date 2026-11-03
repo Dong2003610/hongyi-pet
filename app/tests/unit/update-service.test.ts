@@ -99,3 +99,24 @@ test('public GitHub API discovers release and downloads through asset API when m
   const f = await fixture({ fetch: async url => { visited.push(String(url)); if (apiMiss(url)) return Response.json(metadata); if (String(url).includes('ghfast.top')) throw new Error('mirror unavailable'); return new Response(bytes); } });
   try { assert.equal((await f.service.check()).phase, 'available'); await f.service.download(); assert.ok(visited.some(url => url.endsWith('/releases/assets/123'))); assert.equal(f.prepared(), 1); } finally { await f.cleanup(); }
 });
+
+test('paused partial download survives service restart and resumes with Range', async () => {
+  let firstService: AppUpdateService;
+  const f = await fixture({ changed: state => { if (state.phase === 'downloading' && (state.progress ?? 0) > 0) firstService.cancel(); },
+    fetch: async url => apiMiss(url) ? noApi() : String(url).endsWith('.json') ? Response.json(manifest()) : new Response(new ReadableStream({ start(controller) { controller.enqueue(bytes.subarray(0, 7)); } })) });
+  firstService = f.service;
+  let second: Awaited<ReturnType<typeof fixture>> | undefined;
+  try {
+    await f.service.check(); await assert.rejects(f.service.download());
+    const cache = JSON.parse(await readFile(path.join(f.directory, 'partial-update.json'), 'utf8'));
+    assert.deepEqual(await readFile(path.join(f.directory, cache.id, 'update.zip')), bytes.subarray(0, 7));
+    second = await fixture({ directory: f.directory, fetch: async (url, init) => {
+      if (apiMiss(url)) return noApi(); if (String(url).endsWith('.json')) return Response.json(manifest());
+      assert.equal(new Headers(init?.headers).get('range'), 'bytes=7-');
+      return new Response(bytes.subarray(7), { status: 206, headers: { 'content-range': `bytes 7-${bytes.length - 1}/${bytes.length}` } });
+    } });
+    await second.service.restore(); await second.service.check(); await second.service.download();
+    assert.equal(second.prepared(), 1); assert.equal(second.service.status().phase, 'ready');
+    assert.ok(second.states.some(s => /MB.*KB\/s/.test(s.message)), 'download metrics reach the existing status UI');
+  } finally { await second?.cleanup(); await f.cleanup(); }
+});
