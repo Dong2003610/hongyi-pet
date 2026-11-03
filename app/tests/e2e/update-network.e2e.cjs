@@ -14,10 +14,11 @@ async function main() {
     await fs.writeFile(script, `const {app}=require('electron'),http=require('node:http'),assert=require('node:assert/strict'),{updateFetch}=require('./transport');
       app.whenReady().then(async()=>{let server,code=0,hits=0;try {
         console.log('network:ready');
-        server=http.createServer((req,res)=>{hits++;if(req.url==='/redirect'){res.writeHead(302,{location:'/file'});res.end();}else if(req.url==='/slow'){res.writeHead(200,{'content-type':'application/octet-stream'});res.write(Buffer.alloc(65536));}else{res.writeHead(200);res.write('hello');setTimeout(()=>res.end(' world'),20);}});
+        server=http.createServer((req,res)=>{hits++;if(req.url==='/redirect'){res.writeHead(302,{location:'/file'});res.end();}else if(req.url==='/range'){assert.equal(req.headers.range,'bytes=6-');res.writeHead(206,{'content-range':'bytes 6-10/11'});res.end('world');}else if(req.url==='/slow'){res.writeHead(200,{'content-type':'application/octet-stream'});res.write(Buffer.alloc(65536));}else{res.writeHead(200);res.write('hello');setTimeout(()=>res.end(' world'),20);}});
         await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
         let r=await updateFetch(base+'/redirect',{signal:AbortSignal.timeout(5000)});assert.equal(r.status,302);assert.equal(r.headers.get('location'),base+'/file');assert.equal(hits,1,'adapter must not follow redirect before allowlist validation');console.log('network:redirect');
-        r=await updateFetch(base+'/file',{signal:AbortSignal.timeout(5000)});assert.equal(await r.text(),'hello world');console.log('network:stream');
+        r=await updateFetch(base+'/file',{signal:AbortSignal.timeout(5000)});assert.equal(await r.text(),'hello world');assert.equal(hits,2,'streaming must use one HTTP request, not a probe followed by another download');console.log('network:stream');
+        r=await updateFetch(base+'/range',{signal:AbortSignal.timeout(5000),headers:{Range:'bytes=6-'}});assert.equal(r.status,206);assert.equal(r.headers.get('content-range'),'bytes 6-10/11');assert.equal(await r.text(),'world');assert.equal(hits,3);console.log('network:range');
         const cancel=new AbortController();r=await updateFetch(base+'/slow',{signal:cancel.signal});const reader=r.body.getReader();await reader.read();console.log('network:before-cancel');cancel.abort();await assert.rejects(reader.read());console.log('network:cancel');
         const before=new AbortController();before.abort();await assert.rejects(updateFetch(base+'/file',{signal:before.signal}));
         console.log('Update system network: PASS (manual redirects, streaming body, cancellation before/after response; local server only).');
