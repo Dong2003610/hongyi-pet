@@ -1,10 +1,10 @@
 import { execFile, spawn } from 'node:child_process';
-import { access, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, open, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { promises as disk } from 'original-fs';
 import type { UpdateRelease } from './update-feed';
-import { UPDATE_HELPER } from './update-helper';
+import { UPDATE_HELPER, UPDATE_LAUNCHER } from './update-helper';
 import { atomicWriteJson } from './persistence';
 
 const execute = promisify(execFile);
@@ -34,18 +34,31 @@ export class PortableUpdate {
   async launch(id: string): Promise<void> {
     const job = this.job(id); await access(path.join(job, 'plan.json'));
     await rm(path.join(job, 'helper-ready.json'), { force: true });
-    const child = spawn(this.powershell(), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(job, 'helper.ps1'), '-PlanPath', path.join(job, 'plan.json'), '-Mode', 'install'], { windowsHide: true, detached: true, stdio: 'ignore', cwd: job, env: this.environment() });
-    let failed = false; child.on('error', () => { failed = true; }); child.on('exit', () => { failed = true; }); child.unref();
-    for (let i = 0; i < 60; i++) {
-      if (failed) break;
+    await rm(path.join(job, 'helper-process.json'), { force: true });
+    await writeFile(path.join(job, 'launch-helper.ps1'), '\ufeff' + UPDATE_LAUNCHER, 'utf8');
+    const logPath = path.join(job, 'helper-launch.log');
+    const log = await open(logPath, 'a');
+    let child;
+    let failure: string | undefined;
+    try {
+      child = spawn(this.powershell(), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(job, 'launch-helper.ps1'), '-PowerShellPath', this.powershell(), '-HelperPath', path.join(job, 'helper.ps1'), '-PlanPath', path.join(job, 'plan.json')], { windowsHide: true, detached: false, stdio: ['ignore', log.fd, log.fd], cwd: job, env: this.environment() });
+      child.on('error', error => { failure = error.message; });
+      child.on('exit', (code, signal) => { if (code !== 0) failure = `exit=${code}, signal=${signal ?? 'none'}`; }); child.unref();
+    } finally { await log.close(); }
+    for (let i = 0; i < 300; i++) {
       try { const ready = JSON.parse((await readFile(path.join(job, 'helper-ready.json'), 'utf8')).replace(/^\ufeff/, '')); if (ready.id === id) return; } catch {}
+      if (failure) break;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
+    try {
+      const launched = JSON.parse((await readFile(path.join(job, 'helper-process.json'), 'utf8')).replace(/^\ufeff/, ''));
+      if (launched.id === id && Number.isSafeInteger(launched.pid) && launched.pid > 0 && launched.pid !== process.pid && launched.pid !== this.options.oldPid) process.kill(launched.pid);
+    } catch { /* Only the helper recorded for this launch can be terminated. */ }
     if (child.pid && child.exitCode === null) {
       const exited = new Promise<void>(resolve => child.once('exit', () => resolve()));
       child.kill(); await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 2000))]);
     }
-    throw new Error('更新助手未能启动，当前版本继续运行');
+    throw new Error(`更新助手未能启动${failure ? `（${failure}）` : '（等待启动确认超时）'}，当前版本继续运行。诊断日志：${logPath}`);
   }
   async previousFailure(): Promise<string | undefined> {
     const root = path.join(this.options.userData, 'updates');
