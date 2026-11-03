@@ -116,12 +116,30 @@ test('focus checkpoints restore paused and preserve unsynced time after restart'
   f.fail(false); await restored.focus({ action: 'retry' }); assert.equal(f.items[0]!.elapsedSeconds, 101);
 });
 
-test('timer caps at round duration, announces once and cannot resume an expired round', async () => {
+test('expired timer saves its capped duration, announces once and retires automatically', async () => {
   const f = fixture(); await f.companion.focus({ action: 'start', id, minutes: 1 }); f.advance(5 * 60000); await f.companion.tick();
-  assert.equal(f.companion.status().focus.seconds, 150); assert.equal(f.companion.status().focus.remaining, 0);
-  assert.equal(f.companion.status().focus.phase, 'paused'); assert.equal(f.notifications.length, 1);
+  assert.equal(f.items[0]!.elapsedSeconds, 150);
+  assert.equal(f.companion.status().focus.phase, 'idle'); assert.equal(f.notifications.length, 1);
   f.advance(31000); await f.companion.tick(); assert.equal(f.notifications.length, 1);
+  const restored = f.restored(); await restored.restore(); assert.equal(restored.status().focus.phase, 'idle');
+  await f.companion.focus({ action: 'start', id, minutes: 1 }); assert.equal(f.companion.status().focus.remaining, 60);
+});
+
+test('expired timer retains failed sync and retires only after successful retry without double counting', async () => {
+  const f = fixture(); await f.companion.focus({ action: 'start', id, minutes: 1 }); f.fail(true); f.advance(60000); await f.companion.tick();
+  assert.equal(f.companion.status().focus.remaining, 0); assert.match(f.companion.status().focus.error!, /尚未同步/);
+  assert.equal(f.companion.status().focus.seconds, 150); assert.equal(f.notifications.length, 1);
   await assert.rejects(f.companion.focus({ action: 'resume' }), /本轮已结束/);
+  const restored = f.restored(); await restored.restore(); assert.equal(restored.status().focus.seconds, 150);
+  f.fail(false); await restored.focus({ action: 'retry' });
+  assert.equal(restored.status().focus.phase, 'idle'); assert.equal(f.items[0]!.elapsedSeconds, 150);
+  f.advance(31000); await restored.tick(); assert.equal(f.notifications.length, 1);
+});
+
+test('completed free focus retires locally and allows the next round', async () => {
+  const f = fixture(); await f.companion.focus({ action: 'start', minutes: 1 }); f.advance(60000); await f.companion.tick();
+  assert.equal(f.companion.status().focus.phase, 'idle'); assert.equal(f.notifications.length, 1); assert.equal(f.writes.length, 0);
+  await f.companion.focus({ action: 'start', minutes: 1 }); assert.equal(f.companion.status().focus.phase, 'running');
 });
 
 test('suspend pauses immediately even while a remote checkpoint is blocked', async () => {
