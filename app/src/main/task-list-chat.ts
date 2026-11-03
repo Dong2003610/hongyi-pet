@@ -321,6 +321,7 @@ export class TaskListChat {
       this.options.changed?.();
       if (intent.action === 'stop') return '本轮专注已结束，进度已保存。';
       if (status.phase === 'idle') return '当前没有任务专注。可以说“专注写报告25分钟”。';
+        if (status.remaining <= 0) return `“${status.name}”本轮专注已完成，休息一下吧。${status.error ? `\n${status.error}，可在专注卡片中重试同步。` : '时长保存后会自动收起。'}`;
       return `“${status.name}”${status.phase === 'running' ? '正在专注' : '已暂停'}，本轮剩余 ${Math.floor(status.remaining / 60)} 分 ${status.remaining % 60} 秒。${status.error ? `\n${status.error}` : ''}`;
     }
     if (intent.type === 'briefing') {
