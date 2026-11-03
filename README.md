@@ -61,7 +61,7 @@ cd app
 npm run portable:win
 ```
 
-推送代码后 GitHub Actions 会自动构建 portable 包（见 `.github/workflows/build.yml`）。
+推送到 main 后，GitHub Actions 会自动递增版本，完成测试和 portable 打包，再发布正式更新；桌宠可在设置中检测和升级，无需手动创建版本标签（见 `.github/workflows/build.yml`）。
 
 ## AI 聊天配置（可选）
 
