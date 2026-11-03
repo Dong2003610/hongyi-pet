@@ -1,10 +1,10 @@
-小红桌宠 1.1.1
+小红桌宠 1.1.2
 
-- 新增桌宠内检查更新、下载进度、取消下载与一键重启升级。
-- 新版本气泡、人物动作、提示音和系统通知；专注与免打扰期间延后提示。
-- 更新包 SHA-256 校验、完整目录替换、新版启动失败自动回退。
-- 增加公开 GitHub API 版本检测和资产下载备用入口，处理本机镜像/下载域名超时。
-- 新闻简报及已有 AI 配置继续使用；账号、聊天、提醒和任务数据保留。
-- 修复自动巡逻及连续两次走路时出现的站立平移。
+- feat: companion interaction and motion update (5/5): README.md
+- feat: companion interaction and motion update (4/5): .github/workflows/build.yml
+- feat: companion interaction and motion update (3/5): docs/auto-update.md
+- feat: companion interaction and motion update (2/5): app/tools/auto-release.mjs
+- feat: companion interaction and motion update (1/5): app/tests/unit/auto-release.test.mjs
+- fix: show account dialog above every dashboard page
 
-本版本是自动更新的首次安装版本，需要手动解压到独立文件夹运行一次。
+本版本已通过自动测试和便携版构建，支持在小屋设置中下载并重启更新。
