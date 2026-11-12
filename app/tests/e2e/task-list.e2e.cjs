@@ -303,6 +303,29 @@ async function main() {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'quick chat fits its small window');
     await page.screenshot({ path: path.join(qa, 'quick-chat.png') });
     console.log('Dashboard self-check: saved drafts/settings, stable timer focus and quick layout passed.');
+    assert.match(await page.locator('.chat-msg .chat-time').last().textContent(), /\d{4}.*\d{2}:\d{2}/);
+    assert.ok(await page.locator('.chat-msg time').last().getAttribute('datetime'));
+    await page.evaluate(() => {
+      window.setMockFocus({ phase: 'paused', name: '延迟继续测试', seconds: 90, remaining: 1500 });
+      window.originalFocus = window.petAPI.taskList.focus;
+      window.focusRequestCount = 0;
+      window.petAPI.taskList.focus = () => { window.focusRequestCount++; return new Promise(resolve => { window.finishFocusRequest = () => {
+        const next = { phase: 'running', name: '延迟继续测试', seconds: 90, remaining: 1500 };
+        window.setMockFocus(next); resolve(next);
+      }; }); };
+    });
+    await page.waitForFunction(() => document.querySelector('.task-chat-focus button').textContent === '继续');
+    await page.locator('.task-chat-focus button').first().click();
+    assert.equal(await page.locator('.task-chat-focus button').first().textContent(), '继续中…');
+    assert.equal(await page.locator('.task-chat-focus button').first().isDisabled(), true);
+    assert.equal(await page.locator('.task-chat-focus button').nth(1).isDisabled(), true);
+    await page.screenshot({ path: path.join(qa, 'quick-chat-resuming.png') });
+    await page.evaluate(() => window.finishFocusRequest());
+    await page.waitForFunction(() => document.querySelector('.task-chat-focus button').textContent === '暂停' && !document.querySelector('.task-chat-focus button').disabled);
+    assert.equal(await page.evaluate(() => window.focusRequestCount), 1);
+    await page.evaluate(() => { window.petAPI.taskList.focus = window.originalFocus; window.setMockFocus({ phase: 'idle', seconds: 0, remaining: 0 }); });
+    console.log('Dashboard self-check: message timestamps and single-flight resume feedback passed.');
+
     for (const [width, height] of [[320, 320], [380, 430], [480, 620]]) {
       await page.setViewportSize({ width, height });
       assert.equal(await page.locator('#close-btn').evaluate((button) => {
