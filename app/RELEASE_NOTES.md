@@ -1,10 +1,8 @@
-小红桌宠 1.1.8
+小红桌宠 1.1.9
 
-- chore: publish v1.1.8 for in-app upgrade verification (6/6): pet-spec.json
-- chore: publish v1.1.8 for in-app upgrade verification (5/6): app/pet-spec.json
-- chore: publish v1.1.8 for in-app upgrade verification (4/6): app/package.json
-- chore: publish v1.1.8 for in-app upgrade verification (3/6): app/package-lock.json
-- chore: publish v1.1.8 for in-app upgrade verification (2/6): app/.doubao-pet-builder.json
-- chore: publish v1.1.8 for in-app upgrade verification (1/6): app/migrations/release-1.1.8.json
+- fix: clean quick chat window outline (4/4): app/src/renderer/dashboard/index.css
+- fix: clean quick chat window outline (3/4): app/src/main.ts
+- fix: clean quick chat window outline (2/4): app/.doubao-pet-builder.json
+- fix: clean quick chat window outline (1/4): app/migrations/20261112-clean-quick-chat-outline.json
 
 本版本已通过自动测试和便携版构建，支持在小屋设置中下载并重启更新。
