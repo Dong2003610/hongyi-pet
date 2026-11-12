@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatTaskListReply, parseTaskListQuery, TaskListService, taskListDate, taskListWeek } from '../../src/main/task-list';
+import { formatTaskListReply, parseTaskListQuery, FocusConflictError, TaskListService, taskListDate, taskListWeek } from '../../src/main/task-list';
 
 const userId = '00000000-0000-4000-8000-000000000001';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -153,4 +153,17 @@ test('summaries preserve actual counts, show priority, and cap chat output witho
   assert.match(reply, /还有 1 项/);
   assert.doesNotMatch(reply, /任务 6/);
   assert.equal(snapshot.items.length, 7);
+});
+
+
+test('focus lease distinguishes real multi-client conflicts from network failures', async () => {
+  const f = fixture((url) => {
+    if (url.pathname.includes('/token')) return Response.json(token());
+    return Response.json({ id: userId, user_metadata: { dtl_focus_v1: { client: 'another-client', owner: 'web', phase: 'running', expiresAt: now.getTime() + 60000 } } });
+  });
+  await f.service.login({ username: 'tester', password: 'fixture-only', remember: false });
+  await assert.rejects(f.service.claimFocus({ phase: 'running', taskId: id(1), name: '任务', seconds: 0, remaining: 1500 }), FocusConflictError);
+  const offline = fixture(url => { if (url.pathname.includes('/token')) return Response.json(token()); throw new Error('offline'); });
+  await offline.service.login({ username: 'tester', password: 'fixture-only', remember: false });
+  await assert.rejects(offline.service.claimFocus({ phase: 'running', taskId: id(1), name: '任务', seconds: 0, remaining: 1500 }), error => !(error instanceof FocusConflictError));
 });
