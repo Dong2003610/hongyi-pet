@@ -277,6 +277,7 @@ html, body {
 .chat-input { min-width: 0; }
 .chat-msg { border: 0; padding: 0; margin: 8px 0 14px; }
 .chat-msg .role { font-size: 10px; color: var(--muted); display: block; margin-bottom: 4px; }
+.chat-time { margin-left: 8px; font-size: 11px; font-weight: 400; color: #89766b; font-variant-numeric: tabular-nums; }
 .chat-content { display: inline-block; padding: 9px 12px; border-radius: 4px 13px 13px; background: #f7f4f0; max-width: 96%; white-space: pre-wrap; }
 .from-me { text-align: right; }
 .from-me .chat-content { background: var(--background); border-radius: 13px 4px 13px 13px; text-align: left; }
