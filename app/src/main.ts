@@ -492,7 +492,8 @@ function createWindows(): void {
     backgroundColor: '#00000000',
     show: false,
     resizable: true,
-    hasShadow: true,
+    // The renderer owns the rounded outline; a native shadow outlines the rectangular window.
+    hasShadow: false,
     title: `${spec.character.displayName}的小屋`,
     opacity: e2eMode ? 0 : 1,
   }, 'dashboard', DASHBOARD_WINDOW_PRELOAD_WEBPACK_ENTRY);
