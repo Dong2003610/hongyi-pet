@@ -142,6 +142,15 @@ function appendChat(role: string, text: string, message?: ChatMessage, restored 
   const roleSpan = document.createElement('span');
   roleSpan.className = 'role';
   roleSpan.textContent = role === 'me' ? '我' : '💬';
+  const stamp = document.createElement('time'); stamp.className = 'chat-time';
+  const createdAt = message?.createdAt ?? (restored ? undefined : new Date().toISOString());
+  if (createdAt && Number.isFinite(Date.parse(createdAt))) {
+    const date = new Date(createdAt);
+    stamp.dateTime = date.toISOString();
+    stamp.textContent = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+    stamp.title = `${stamp.textContent}（北京时间）`;
+  } else stamp.textContent = '时间未记录';
+  roleSpan.append(stamp);
   const content = document.createElement('p'); content.className = 'chat-content';
   content.textContent = message?.cards?.some((card) => card.kind === 'choice' || card.kind === 'task') && /\n\d+\./.test(text) ? text.split('\n')[0]! : text;
   div.classList.add(role === 'me' ? 'from-me' : 'from-pet'); div.append(roleSpan, content);
