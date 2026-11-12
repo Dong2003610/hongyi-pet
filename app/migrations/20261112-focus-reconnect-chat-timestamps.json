@@ -1,0 +1,34 @@
+{
+  "id": "20261112-focus-reconnect-chat-timestamps",
+  "description": "Add persisted optional message timestamps, backwards-compatible history parsing and renderer dates; tolerate transient focus lease failures and show pending controls without stale status overwrites.",
+  "templateContractVersion": 5,
+  "specSchemaVersion": 5,
+  "files": [
+    {
+      "file": "src/main.ts",
+      "from": "0a7b954537284b986aac55e734149fb72bf25025b84099eaa033b020e325671a",
+      "to": "76baa9d7bd5c8766e80e62c6aeed0b1c8ab5b9717063991e7f2e86762631ae26"
+    },
+    {
+      "file": "src/shared/contracts.ts",
+      "from": "2aee4192ebbaef6c930ff06bfaf4cc1548b1a856af805faa5526f6c416a87d03",
+      "to": "f571195a8d6ef5bffd9f8375c839a206d09fcfc2fdbe8550855c5b68b6a0d0ae"
+    },
+    {
+      "file": "src/main/data-validation.ts",
+      "from": "d3fd0ba2a7d28f46f9ffee49ee1df98413da98d61ecaa56aaaa6deb0885eebcf",
+      "to": "49ed2ba91819d65412c496d3c35a231757ae05e67f53c2d2eff4ec76774bcdf5"
+    },
+    {
+      "file": "src/renderer/dashboard/index.ts",
+      "from": "b21a333db5615719bfa10d4a1cd29e7fef1a50b9a1fcef32fc30a6d759c2136f",
+      "to": "55e20024e318c0e8614e91013703a9c34e352e8eec98abfad81a8a865a2c560c"
+    }
+  ],
+  "validation": [
+    "TypeScript compilation",
+    "Development contract and preflight",
+    "Focus reconnect/conflict/expiry and chat history unit tests",
+    "Dashboard integration including timestamps and delayed resume"
+  ]
+}
