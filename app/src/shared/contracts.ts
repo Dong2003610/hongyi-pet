@@ -138,6 +138,7 @@ export interface Reminder {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
   source?: 'chat' | 'task' | 'reminder' | 'news';
   cards?: ChatCard[];
   activeTaskName?: string | null;
