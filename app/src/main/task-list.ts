@@ -33,6 +33,8 @@ class RequestError extends Error {
   constructor(readonly status: number) { super('任务服务请求失败'); }
 }
 
+export class FocusConflictError extends Error {}
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -114,12 +116,12 @@ export class TaskListService {
     if (expected !== undefined && expected !== this.revision) throw new Error('清单账号已切换，请重新操作。');
   }
 
-  private async json(route: string, init: RequestInit = {}, token?: string): Promise<unknown> {
+  private async json(route: string, init: RequestInit = {}, token?: string, timeoutMs = 15000): Promise<unknown> {
     try {
       const response = await this.request(`${this.options.url}${route}`, {
         ...init,
         headers: { ...(init.headers as Record<string, string> | undefined), apikey: this.options.publicKey, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(timeoutMs),
         redirect: 'error',
       });
       if (!response.ok) throw new RequestError(response.status);
@@ -205,16 +207,16 @@ export class TaskListService {
     return session;
   }
 
-  private async authorized(route: string, init: RequestInit, expected?: number): Promise<unknown> {
+  private async authorized(route: string, init: RequestInit, expected?: number, timeoutMs = 15000): Promise<unknown> {
     this.assertAccount(expected);
     let session = this.session;
     if (!session) throw new Error('请先在“清单”页连接你的账号。');
     if (session.expiresAt <= this.now().getTime() + 60_000) session = await this.refresh();
-    try { return await this.json(route, init, session.accessToken); }
+    try { return await this.json(route, init, session.accessToken, timeoutMs); }
     catch (error) {
       if (!(error instanceof RequestError) || error.status !== 401) throw error;
       session = await this.refresh();
-      return this.json(route, init, session.accessToken);
+      return this.json(route, init, session.accessToken, timeoutMs);
     }
   }
 
@@ -295,7 +297,7 @@ export class TaskListService {
       this.assertAccount(expected);
       if (!UUID.test(id) || !this.session) throw new Error('任务或账号无效。');
       const params = new URLSearchParams({ id: `eq.${id}`, user_id: `eq.${this.session.userId}`, select: DAILY_FIELDS });
-      const result = await this.authorized(`/rest/v1/tasks?${params}`, {}, expected);
+      const result = await this.authorized(`/rest/v1/tasks?${params}`, {}, expected, 4000);
       if (!Array.isArray(result) || result.length !== 1) throw new Error('任务已不存在，请刷新。');
       return linkedTask(result[0]);
     });
@@ -306,11 +308,11 @@ export class TaskListService {
       this.assertAccount(expected);
       if (!UUID.test(id) || !Number.isSafeInteger(seconds) || seconds < 0 || !this.session) throw new Error('专注计时数据无效。');
       const params = new URLSearchParams({ id: `eq.${id}`, user_id: `eq.${this.session.userId}`, elapsed_seconds: `lte.${seconds}`, select: DAILY_FIELDS });
-      const result = await this.authorized(`/rest/v1/tasks?${params}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ elapsed_seconds: seconds }) }, expected);
+      const result = await this.authorized(`/rest/v1/tasks?${params}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ elapsed_seconds: seconds }) }, expected, 4000);
       if (!Array.isArray(result)) throw new Error('保存专注时长失败，请重试。');
       if (result.length === 1) return linkedTask(result[0]);
       params.delete('elapsed_seconds');
-      const current = await this.authorized(`/rest/v1/tasks?${params}`, {}, expected);
+      const current = await this.authorized(`/rest/v1/tasks?${params}`, {}, expected, 4000);
       if (!Array.isArray(current) || current.length !== 1) throw new Error('任务已不存在，请先保留本地计时。');
       return linkedTask(current[0]);
     });
@@ -389,8 +391,8 @@ export class TaskListService {
       reminderAt: item.reminderAt && Date.parse(item.reminderAt) > this.now().getTime() ? item.reminderAt : null }));
   }
 
-  private async workspace(expected: number): Promise<Record<string, unknown>> {
-    const user = record(await this.authorized('/auth/v1/user', {}, expected));
+  private async workspace(expected: number, timeoutMs = 15000): Promise<Record<string, unknown>> {
+    const user = record(await this.authorized('/auth/v1/user', {}, expected, timeoutMs));
     if (user.id !== this.session?.userId) throw new Error('清单账号验证失败，请重新登录。');
     return record(user.user_metadata);
   }
@@ -403,18 +405,18 @@ export class TaskListService {
   }
   claimFocus(focus: TaskFocusStatus, expected = this.revision): Promise<void> {
     return this.serial(async () => {
-      const meta = await this.workspace(expected); const current = record(meta.dtl_focus_v1);
-      if (current.client !== this.focusClient && current.phase === 'running' && typeof current.expiresAt === 'number' && current.expiresAt > this.now().getTime()) throw new Error(`已有${current.owner === 'web' ? '网页' : '另一台桌宠'}正在专注，请先在那里暂停或结束。`);
+      const meta = await this.workspace(expected, 4000); const current = record(meta.dtl_focus_v1);
+      if (current.client !== this.focusClient && current.phase === 'running' && typeof current.expiresAt === 'number' && current.expiresAt > this.now().getTime()) throw new FocusConflictError(`已有${current.owner === 'web' ? '网页' : '另一台桌宠'}正在专注，请先在那里暂停或结束。`);
       const lease = { client: this.focusClient, owner: 'desktop', phase: focus.phase, taskId: focus.taskId, name: focus.name, seconds: focus.seconds, remaining: focus.remaining, expiresAt: this.now().getTime() + 90000 };
-      await this.authorized('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ data: { dtl_focus_v1: lease } }) }, expected);
-      const verified = record((await this.workspace(expected)).dtl_focus_v1);
-      if (verified.client !== this.focusClient) throw new Error('另一端刚刚开始了专注，请刷新后重试。');
+      await this.authorized('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ data: { dtl_focus_v1: lease } }) }, expected, 4000);
+      const verified = record((await this.workspace(expected, 4000)).dtl_focus_v1);
+      if (verified.client !== this.focusClient) throw new FocusConflictError('另一端刚刚开始了专注，请刷新后重试。');
     });
   }
   releaseFocus(expected = this.revision): Promise<void> {
     return this.serial(async () => {
-      const meta = await this.workspace(expected);
-      if (record(meta.dtl_focus_v1).client === this.focusClient) await this.authorized('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ data: { dtl_focus_v1: null } }) }, expected);
+      const meta = await this.workspace(expected, 4000);
+      if (record(meta.dtl_focus_v1).client === this.focusClient) await this.authorized('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ data: { dtl_focus_v1: null } }) }, expected, 4000);
     });
   }
 }
