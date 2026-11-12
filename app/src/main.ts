@@ -576,9 +576,10 @@ async function persistChatHistory(): Promise<void> {
   await atomicWriteJson(userFile('chat-history.json'), chatHistory);
 }
 
-async function recordTurn(text: string | undefined, reply: ChatMessage): Promise<ChatMessage> {
+async function recordTurn(text: string | undefined, reply: ChatMessage, sentAt?: string): Promise<ChatMessage> {
+  reply.createdAt = new Date().toISOString();
   if (reply.source === 'task') reply.accountId = taskList.accountKey() ?? 'local';
-  if (text) chatHistory.push({ role: 'user', content: text, source: reply.source, accountId: reply.accountId });
+  if (text) chatHistory.push({ role: 'user', content: text, source: reply.source, accountId: reply.accountId, createdAt: sentAt ?? reply.createdAt });
   chatHistory.push(reply); chatHistory = chatHistory.slice(-80);
   try { await persistChatHistory(); }
   catch { reply.content += '\n本次对话记录未能写入本机，操作结果以卡片为准。'; }
@@ -588,19 +589,21 @@ function serializeChat<T>(run: () => Promise<T>): Promise<T> {
   const result = chatQueue.then(run); chatQueue = result.catch(() => {}); return result;
 }
 async function chatTurn(text: string): Promise<ChatMessage> {
+  const sentAt = new Date().toISOString();
+  const recordReply = (reply: ChatMessage) => recordTurn(text, reply, sentAt);
   const newsReply = await news.turn(text);
-  if (newsReply) return recordTurn(text, newsReply);
+  if (newsReply) return recordReply(newsReply);
   news.forgetSelection();
   const local = personalReminder(text, new Date(), taskList.status().connected);
   if (local) {
     try {
       const saved = await createReminder(local);
-      return recordTurn(text, { role: 'assistant', source: 'reminder', content: `已保存${local.repeat === 'none' ? '' : local.repeat === 'daily' ? '每日' : '工作日'}提醒：“${saved.text}”。`,
+      return recordReply({ role: 'assistant', source: 'reminder', content: `已保存${local.repeat === 'none' ? '' : local.repeat === 'daily' ? '每日' : '工作日'}提醒：“${saved.text}”。`,
         cards: [{ kind: 'reminder', title: saved.text, state: 'saved', detail: `${new Date(Date.parse(saved.dueAt) + 8 * 3600_000).toISOString().slice(0, 16).replace('T', ' ')} · 北京时间 · 本机提醒${local.repeat !== 'none' ? ' · 重复提醒不创建任务' : ''}` }] });
-    } catch { return recordTurn(text, { role: 'assistant', source: 'reminder', content: '提醒保存失败，请检查本机存储后重试。', cards: [{ kind: 'error', title: '提醒尚未保存', state: 'failed' }] }); }
+    } catch { return recordReply({ role: 'assistant', source: 'reminder', content: '提醒保存失败，请检查本机存储后重试。', cards: [{ kind: 'error', title: '提醒尚未保存', state: 'failed' }] }); }
   }
   const taskReply = await taskListChat.turn(text);
-  if (taskReply !== undefined) return recordTurn(text, taskReply);
+  if (taskReply !== undefined) return recordReply(taskReply);
   const fallback = replyToChat(text, { name: effectiveDisplayName(), mood: stats.mood, affection: stats.affection });
   let reply = fallback;
   if (aiConfig) {
@@ -644,7 +647,7 @@ async function chatTurn(text: string): Promise<ChatMessage> {
       reply = fallback;
     }
   }
-  return recordTurn(text, { role: 'assistant', source: 'chat', content: reply });
+  return recordReply({ role: 'assistant', source: 'chat', content: reply });
 }
 
 function showReminderComposer(): void {
