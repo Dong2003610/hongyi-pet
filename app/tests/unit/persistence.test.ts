@@ -4,8 +4,20 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { atomicWriteJson, readValidatedJson } from '../../src/main/persistence';
-import { parseSettings } from '../../src/main/data-validation';
+import { parseChatHistory, parseSettings } from '../../src/main/data-validation';
 import type { Settings } from '../../src/shared/contracts';
+
+test('chat history preserves valid timestamps and keeps legacy or invalid times unknown', () => {
+  const messages = parseChatHistory([
+    { role: 'user', content: '开始专注', createdAt: '2026-11-12T10:20:00+08:00' },
+    { role: 'assistant', content: '旧记录' },
+    { role: 'assistant', content: '错误时间', createdAt: 'invalid' },
+  ]);
+  assert.equal(messages[0]!.createdAt, '2026-11-12T02:20:00.000Z');
+  assert.equal(messages[1]!.createdAt, undefined);
+  assert.equal(messages[2]!.createdAt, undefined);
+  assert.equal(parseChatHistory(JSON.parse(JSON.stringify(messages)))[0]!.createdAt, messages[0]!.createdAt);
+});
 
 const defaults: Settings = {
   edgeSnap: true,
