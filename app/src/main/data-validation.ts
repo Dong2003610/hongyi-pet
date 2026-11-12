@@ -129,7 +129,9 @@ export function parseChatHistory(value: unknown): ChatMessage[] {
         ...(card.kind === 'news' && typeof card.url === 'string' && card.url.length <= 2000 && /^https:\/\//.test(card.url) ? { url: card.url } : {}),
         ...(['saved', 'pending', 'failed'].includes(String(card.state)) ? { state: card.state as 'saved' | 'pending' | 'failed' } : {}) });
     }
-    return { role: obj.role, content: obj.content, ...(['chat', 'task', 'reminder', 'news'].includes(String(obj.source)) ? { source: obj.source as ChatMessage['source'] } : {}),
+    return { role: obj.role, content: obj.content,
+      ...(typeof obj.createdAt === 'string' && obj.createdAt.length <= 40 && Number.isFinite(Date.parse(obj.createdAt)) ? { createdAt: new Date(obj.createdAt).toISOString() } : {}),
+      ...(['chat', 'task', 'reminder', 'news'].includes(String(obj.source)) ? { source: obj.source as ChatMessage['source'] } : {}),
       ...(typeof obj.accountId === 'string' && (obj.accountId === 'local' || /^[0-9a-f-]{36}$/i.test(obj.accountId)) ? { accountId: obj.accountId } : {}), ...(cards.length ? { cards } : {}) };
   });
 }
