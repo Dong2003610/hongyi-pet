@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { LinkedTask, TaskCompanionPreferences, TaskFocusStatus, TaskListCreateInput, TaskListSnapshot } from '../shared/contracts';
-import { TaskListService, taskListDate, validTaskDate } from './task-list';
+import { FocusConflictError, TaskListService, taskListDate, validTaskDate } from './task-list';
 import { chatWithAi, type AiConfig } from './ai-chat';
 
 export const companionDefaults: TaskCompanionPreferences = {
@@ -55,6 +55,7 @@ export class TaskCompanion {
   private lastScan = 0;
   private lastFlush = 0;
   private lastLease = 0;
+  private lastLeaseAttempt = 0;
   private pauseRevision = 0;
   private backgroundError?: string;
   private readonly now: () => Date;
@@ -192,6 +193,7 @@ export class TaskCompanion {
       this.options.changed?.();
       if (data.action === 'start' || data.action === 'resume') {
         this.lastLease = this.now().getTime();
+        this.lastLeaseAttempt = this.lastLease;
         if (!state.focus?.running && this.service.accountKey() && this.service.releaseFocus) await this.service.releaseFocus(revision).catch(() => {});
       }
       if (data.action !== 'retry') this.options.activity?.(data.action as 'start' | 'pause' | 'resume' | 'stop', state.focus?.name ?? '本轮专注');
@@ -225,9 +227,20 @@ export class TaskCompanion {
         if (!f.free && this.service.releaseFocus) await this.service.releaseFocus(revision).catch(() => {});
         if (!isQuiet(state.preferences, now)) this.options.notify('任务专注结束', `“${f.name}”本轮结束，休息一下吧。`);
       }
-      if (f?.running && !f.free && this.service.claimFocus && now.getTime() - this.lastLease >= 15000) {
-        try { await this.service.claimFocus(this.focusStatus(state), revision); this.lastLease = now.getTime(); }
-        catch (error) { this.capture(state); f.running = false; f.error = error instanceof Error ? `专注已暂停：${error.message}` : '专注连接中断，已暂停。'; await this.persist(); this.options.changed?.(); return; }
+      if (f?.running && !f.free && this.service.claimFocus && now.getTime() - this.lastLeaseAttempt >= 15000) {
+        this.lastLeaseAttempt = now.getTime();
+        try { await this.service.claimFocus(this.focusStatus(state), revision); this.lastLease = this.now().getTime(); f.error = undefined; }
+        catch (error) {
+          this.capture(state);
+          // A single transient request failure must not interrupt the timer.
+          // Stop before the 90-second remote lease expires to avoid two active owners.
+          const conflict = error instanceof FocusConflictError;
+          if (conflict || this.now().getTime() - this.lastLease >= 60000 || this.service.accountRevision() !== revision) {
+            f.running = false;
+            f.error = conflict ? `专注已暂停：${error.message}` : '连接清单持续失败，为避免多端重复计时已暂停。进度已保留，联网后点“继续”。';
+          } else f.error = '清单连接暂时中断，正在自动重连；专注继续，本机进度已保留。';
+          await this.persist(); this.options.changed?.(); return;
+        }
       }
       if (f) {
         // Checkpoint locally every tick; network flush every 30 seconds. Failed
