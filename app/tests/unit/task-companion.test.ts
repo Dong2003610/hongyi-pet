@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TaskCompanion, companionDefaults, companionPreferences, draftWeeklyPlan, isQuiet } from '../../src/main/task-companion';
-import { TaskListService } from '../../src/main/task-list';
+import { FocusConflictError, TaskListService } from '../../src/main/task-list';
 import type { LinkedTask } from '../../src/shared/contracts';
 import { bubbleBounds, bubbleDocument } from '../../src/main/pet-surfaces';
 
@@ -215,4 +215,41 @@ test('bubble uses independent fixed dimensions and stays above pet at all scales
   const document = bubbleDocument('<script>steal()</script>' + '你'.repeat(200));
   assert.ok(document.includes('font-size:14px')); assert.ok(!document.includes('<script>')); assert.match(document, /&lt;script&gt;/);
   assert.ok(document.includes('rgba(255,253,249,.8)'), 'translucent panel keeps opaque readable text');
+});
+
+
+test('temporary focus lease failures keep counting, retry at bounded intervals and recover', async () => {
+  const f = fixture(); let fails = false; let calls = 0;
+  f.service.claimFocus = async () => { calls++; if (fails) throw new Error('网络断开'); };
+  await f.companion.focus({ action: 'start', id, minutes: 25 });
+  fails = true; f.advance(15000); await f.companion.tick();
+  assert.equal(f.companion.status().focus.phase, 'running');
+  assert.match(f.companion.status().focus.error!, /自动重连/);
+  f.advance(5000); await f.companion.tick(); assert.equal(calls, 2);
+  fails = false; f.advance(10000); await f.companion.tick();
+  assert.equal(calls, 3); assert.equal(f.companion.status().focus.phase, 'running');
+  assert.equal(f.companion.status().focus.error, undefined);
+  assert.equal(f.companion.status().focus.roundSeconds, 30);
+});
+
+test('persistent lease outage pauses before expiration; resume recovers saved work', async () => {
+  const f = fixture(); let fails = false;
+  f.service.claimFocus = async () => { if (fails) throw new Error('网络断开'); };
+  await f.companion.focus({ action: 'start', id, minutes: 25 }); fails = true;
+  for (let i = 0; i < 4; i++) { f.advance(15000); await f.companion.tick(); }
+  const paused = f.companion.status().focus;
+  assert.equal(paused.phase, 'paused'); assert.equal(paused.roundSeconds, 60);
+  assert.match(paused.error!, /连接清单持续失败/);
+  f.advance(10000); fails = false; await f.companion.focus({ action: 'resume' });
+  assert.equal(f.companion.status().focus.phase, 'running');
+  assert.equal(f.companion.status().focus.roundSeconds, 60);
+});
+
+test('confirmed focus owner conflict pauses immediately without retry grace', async () => {
+  const f = fixture(); let conflicts = false;
+  f.service.claimFocus = async () => { if (conflicts) throw new FocusConflictError('网页正在专注'); };
+  await f.companion.focus({ action: 'start', id, minutes: 25 }); conflicts = true;
+  f.advance(15000); await f.companion.tick();
+  assert.equal(f.companion.status().focus.phase, 'paused');
+  assert.match(f.companion.status().focus.error!, /网页正在专注/);
 });
