@@ -30,7 +30,7 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
   const chatError = document.createElement('span'); chatError.className = 'task-error';
   chatFocus.append(chatLabel, chatToggle, chatStop, chatRetry, chatError);
   document.getElementById('chat-messages')?.before(chatFocus);
-  let focus: TaskFocusStatus = { phase: 'idle', seconds: 0, remaining: 0 }; let busy = false; let polling = false; let epoch = 0; let account = '';
+  let focus: TaskFocusStatus = { phase: 'idle', seconds: 0, remaining: 0 }; let busy = false; let polling = false; let epoch = 0; let account = ''; let operation = 0; let pendingAction = ''; let controlError = '';
   const el = (selector: string) => root.querySelector<HTMLElement>(selector)!;
   function render(value: TaskFocusStatus) {
     focus = value;
@@ -48,21 +48,29 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
     progress.value = elapsed === undefined ? 0 : elapsed / Math.max(1, elapsed + value.remaining);
     el('[data-focus="start"]').hidden = value.phase !== 'idle'; el('.focus-duration').hidden = value.phase !== 'idle';
     el('[data-focus="toggle"]').hidden = value.phase === 'idle' || value.remaining === 0; el('[data-focus="toggle"]').textContent = value.phase === 'running' ? '暂停' : '继续';
-    el('[data-focus="stop"]').hidden = value.phase === 'idle'; el('[data-focus="retry"]').hidden = !value.error; el('.focus-error').textContent = value.error ?? '';
+    el('[data-focus="stop"]').hidden = value.phase === 'idle'; el('[data-focus="retry"]').hidden = !value.error || value.phase === 'running'; el('.focus-error').textContent = controlError || value.error || '';
     el('[data-focus="stop"]').textContent = complete ? value.error ? '结束并同步' : '收起' : '结束';
     el('.focus-sync').textContent = value.phase === 'idle' ? '一轮结束后由你决定休息或继续。' : value.free ? `本轮 ${format(value.roundSeconds ?? value.seconds)} · 保存在本机` : `任务累计 ${format(value.seconds)} · ${value.error ? '待同步' : '进度自动保存'}`;
     chatFocus.hidden = value.phase === 'idle';
     chatLabel.textContent = complete ? `✓ ${value.name ?? '自由专注'} · 本轮已完成` : `${value.phase === 'running' ? '⏱' : '⏸'} ${value.name ?? '自由专注'} · ${format(value.remaining)}`;
     chatToggle.hidden = value.remaining <= 0; chatToggle.textContent = value.phase === 'running' ? '暂停' : '继续';
     chatStop.textContent = complete ? value.error ? '结束并同步' : '收起' : '结束';
-    chatRetry.hidden = !value.error; chatRetry.disabled = busy;
+    chatRetry.hidden = !value.error || value.phase === 'running'; chatRetry.disabled = busy;
     chatToggle.disabled = chatStop.disabled = busy;
-    chatError.hidden = !value.error; chatError.textContent = value.error ? '时长待同步' : '';
+    const visibleError = controlError || value.error || '';
+    chatError.hidden = !visibleError; chatError.textContent = visibleError; chatError.title = visibleError;
+    if (busy) {
+      const label = pendingAction === 'resume' ? '继续中…' : pendingAction === 'pause' ? '暂停中…' : '处理中…';
+      chatToggle.textContent = label;
+      el('[data-focus="toggle"]').textContent = label;
+      root.querySelectorAll<HTMLButtonElement>('button').forEach((button) => { button.disabled = true; });
+    }
+    chatFocus.setAttribute('aria-busy', String(busy));
   }
   async function open() {
-    const request = epoch; const requestedEdits = editRevision;
+    const request = epoch; const requestedEdits = editRevision; const requestedOperation = operation;
     try {
-      const result = await api!.companion(); if (request !== epoch) return; render(result.focus);
+      const result = await api!.companion(); if (request !== epoch || requestedOperation !== operation || busy) return; render(result.focus);
       el('.task-background-error').textContent = result.error ? `同步暂不可用：${result.error}` : '';
       if (requestedEdits === editRevision && !settingsDirty && !settingsSaving && !settings.contains(document.activeElement)) for (const [key, value] of Object.entries(result.preferences)) { const field = settings.elements.namedItem(key) as HTMLInputElement; if (typeof value === 'boolean') field.checked = value; else field.value = value; }
     } catch (error) { showError(error); }
@@ -71,10 +79,11 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
     if (busy) return;
     const duration = root.querySelector<HTMLInputElement>('.task-focus-minutes')!;
     if (action === 'start' && !duration.reportValidity()) return;
-    busy = true; root.querySelectorAll<HTMLButtonElement>('button').forEach((button) => { button.disabled = true; });
-    try { render(await api!.focus({ action, ...(id ? { id } : {}), ...(action === 'start' ? { minutes: Number(duration.value) } : {}) })); if (action === 'stop') await changed(); }
-    catch (error) { showError(error); }
-    finally { busy = false; root.querySelectorAll<HTMLButtonElement>('button').forEach((button) => { button.disabled = false; }); await open(); }
+    const requestedEpoch = epoch;
+    operation++; controlError = ''; pendingAction = action; busy = true; render(focus);
+    try { const result = await api!.focus({ action, ...(id ? { id } : {}), ...(action === 'start' ? { minutes: Number(duration.value) } : {}) }); if (requestedEpoch !== epoch) return; render(result); if (action === 'stop') await changed(); }
+    catch (error) { if (requestedEpoch === epoch) { controlError = error instanceof Error ? error.message : '操作未成功，请重试。'; showError(error); } }
+    finally { busy = false; pendingAction = ''; root.querySelectorAll<HTMLButtonElement>('button').forEach((button) => { button.disabled = false; }); render(focus); await open(); }
   }
   root.addEventListener('click', (event) => { const action = (event.target as HTMLElement).closest<HTMLElement>('[data-focus]')?.dataset.focus; if (action) void operate(action === 'toggle' ? focus.phase === 'running' ? 'pause' : 'resume' : action as 'start' | 'stop' | 'retry'); });
   settings.addEventListener('submit', (event) => {
@@ -93,7 +102,7 @@ export function setupTaskCompanion(root: HTMLElement, showError: (error: unknown
   });
   const interval = setInterval(() => { if (busy || polling || document.hidden) return; polling = true; void open().finally(() => { polling = false; }); }, 1000);
   window.addEventListener('beforeunload', () => clearInterval(interval));
-  return { open, account: (key: string) => { if (key !== account) { account = key; epoch++; settingsDirty = settingsSaving = false; editRevision++; saveButton.disabled = false; settingsMessage.textContent = ''; void open(); } }, actions(item: LinkedTask, kind: TaskListKind, row: HTMLElement) {
+  return { open, account: (key: string) => { if (key !== account) { account = key; epoch++; controlError = ''; settingsDirty = settingsSaving = false; editRevision++; saveButton.disabled = false; settingsMessage.textContent = ''; void open(); } }, actions(item: LinkedTask, kind: TaskListKind, row: HTMLElement) {
     if (kind !== 'daily' || item.completed) return;
     const button = document.createElement('button'); button.className = 'task-edit-button action-btn'; button.textContent = '专注'; button.type = 'button'; button.dataset.taskWrite = '';
     button.setAttribute('aria-label', `专注：${item.name}`); button.onclick = () => void operate('start', item.id); row.append(button);
